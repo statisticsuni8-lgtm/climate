@@ -8,7 +8,7 @@ const app = express();
 
 app.use(express.json());
 
-// Initialize Gemini SDK with telemetry header as per guidelines
+// Initialize Gemini SDK with telemetry header
 const apiKey = process.env.GEMINI_API_KEY;
 let ai: GoogleGenAI | null = null;
 
@@ -122,7 +122,6 @@ ${weatherContext}
 4. 너무 긴 서론은 생략하고 핵심과 재치를 담아 2~3문단 내외로 간결하고 가독성 좋게(줄바꿈 활용) 답변하세요.
 `;
 
-    // Map conversation messages to Gemini contents structure
     const contents = messages.map((m: any) => ({
       role: m.role === "user" ? "user" : "model",
       parts: [{ text: m.content }],
