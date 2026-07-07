@@ -1,0 +1,6 @@
+{
+  "name": "기후 예측 및 AI 브리핑",
+  "description": "초단기 강수 예측 히트맵, 기후 데이터 기반 상세 분석 피드백, 라이프스타일 가이드 및 날씨/기후 전문 AI 비서 챗봇을 제공하는 고도화된 날씨 브리핑 시스템",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
