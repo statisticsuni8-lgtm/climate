@@ -44,6 +44,7 @@ function getAi(): GoogleGenAI {
 // =====================================================================
 const KMA_API_KEY = process.env.KMA_API_KEY;
 const KMA_ULTRA_FCST_URL = "https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getUltraSrtFcst";
+const KMA_ULTRA_NCST_URL = "https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getUltraSrtNcst";
 const KMA_MISSING_HIGH = 900;
 const KMA_MISSING_LOW = -900;
 
@@ -105,7 +106,57 @@ interface RealWeatherSnapshot {
   radarForecast: number[];
 }
 
-// nx,ny 격자좌표로 실제 초단기예보를 호출해 "현재 + 향후 6단계 강수량"을 만든다.
+// 초단기실황(getUltraSrtNcst)은 예보가 아니라 관측소 기준 "지금 이 순간 실제 관측값"이라
+// 예보치보다 현재 기온·습도·강수 표시에는 더 정확하다. 실패하면 null(호출부가 예보로 대체).
+async function fetchRealNowcast(
+  nx: number,
+  ny: number,
+  now: Date
+): Promise<{ temp: number | null; humidity: number | null; wind: number | null; pty: number | null; rain: number | null } | null> {
+  if (!KMA_API_KEY) return null;
+  try {
+    // 관측은 매시 정각 이후 10분 뒤 반영되므로 10분 여유를 두고 정시로 내림한다.
+    const cursor = new Date(now.getTime() - 10 * 60 * 1000);
+    const baseDate = kmaFormatDate(cursor);
+    const baseTime = `${String(cursor.getHours()).padStart(2, "0")}00`;
+
+    const url = new URL(KMA_ULTRA_NCST_URL);
+    url.searchParams.set("serviceKey", KMA_API_KEY);
+    url.searchParams.set("dataType", "JSON");
+    url.searchParams.set("numOfRows", "20");
+    url.searchParams.set("pageNo", "1");
+    url.searchParams.set("base_date", baseDate);
+    url.searchParams.set("base_time", baseTime);
+    url.searchParams.set("nx", String(nx));
+    url.searchParams.set("ny", String(ny));
+
+    const res = await fetch(url.toString());
+    if (!res.ok) return null;
+    const json: any = await res.json();
+    if (json?.response?.header?.resultCode !== "00") return null;
+
+    const items: any[] = json.response.body?.items?.item ?? [];
+    let temp: number | null = null;
+    let humidity: number | null = null;
+    let wind: number | null = null;
+    let pty: number | null = null;
+    let rain: number | null = null;
+    for (const item of items) {
+      if (item.category === "T1H") temp = kmaValueOrNull(item.obsrValue);
+      if (item.category === "REH") humidity = kmaValueOrNull(item.obsrValue);
+      if (item.category === "WSD") wind = kmaValueOrNull(item.obsrValue);
+      if (item.category === "PTY") pty = kmaValueOrNull(item.obsrValue);
+      if (item.category === "RN1") rain = kmaValueOrNull(item.obsrValue);
+    }
+    return { temp, humidity, wind, pty, rain };
+  } catch (error) {
+    console.error("[KMA] 실황 조회 실패, 예보값으로 대체:", error);
+    return null;
+  }
+}
+
+// nx,ny 격자좌표로 실제 초단기예보+실황을 호출해 "현재 + 향후 6단계 강수량"을 만든다.
+// 현재값은 실황(관측)을 우선 사용하고, 향후 6단계 강수 예측은 예보 데이터를 사용한다.
 // 실패하면 null을 반환해 호출부가 기존 시뮬레이션으로 안전하게 대체할 수 있게 한다.
 async function fetchRealWeatherSnapshot(nx: number, ny: number): Promise<RealWeatherSnapshot | null> {
   if (!KMA_API_KEY) return null;
@@ -123,9 +174,9 @@ async function fetchRealWeatherSnapshot(nx: number, ny: number): Promise<RealWea
     url.searchParams.set("nx", String(nx));
     url.searchParams.set("ny", String(ny));
 
-    const res = await fetch(url.toString());
-    if (!res.ok) return null;
-    const json: any = await res.json();
+    const [fcstRes, nowcast] = await Promise.all([fetch(url.toString()), fetchRealNowcast(nx, ny, now)]);
+    if (!fcstRes.ok) return null;
+    const json: any = await fcstRes.json();
     if (json?.response?.header?.resultCode !== "00") return null;
 
     const items: any[] = json.response.body?.items?.item ?? [];
@@ -158,17 +209,19 @@ async function fetchRealWeatherSnapshot(nx: number, ny: number): Promise<RealWea
     const radarForecast = sortedTimes.slice(0, 6).map((t) => parseRain(byTime.get(t)!.rn1));
     while (radarForecast.length < 6) radarForecast.push(radarForecast[radarForecast.length - 1] ?? 0);
 
-    const rain = parseRain(current.rn1);
-    const wind = current.wsd ?? 1.5;
+    // "지금" 값은 실황(관측)이 있으면 그걸 우선 쓰고, 없을 때만 예보치로 대체
+    const rain = nowcast?.rain ?? parseRain(current.rn1);
+    const wind = nowcast?.wind ?? current.wsd ?? 1.5;
+    const pty = nowcast?.pty ?? current.pty ?? 0;
     let condition: RealWeatherSnapshot["condition"] = "sunny";
     if (rain > 10) condition = "thunderstorm";
-    else if (rain > 0 || (current.pty ?? 0) > 0) condition = "rainy";
+    else if (rain > 0 || pty > 0) condition = "rainy";
     else if (wind >= 7) condition = "windy";
     else if ((current.sky ?? 1) >= 3) condition = "cloudy";
 
     return {
-      temp: current.t1h ?? 20,
-      humidity: current.reh ?? 60,
+      temp: nowcast?.temp ?? current.t1h ?? 20,
+      humidity: nowcast?.humidity ?? current.reh ?? 60,
       wind,
       rain,
       condition,
