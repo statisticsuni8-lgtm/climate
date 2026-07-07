@@ -98,7 +98,6 @@ app.post("/api/weather/chat", async (req, res) => {
     const { messages, currentWeather } = req.body;
     const client = getAi();
 
-    // Format weather info for context
     const weatherContext = currentWeather
       ? `현재 선택된 지역: ${currentWeather.region}
 - 기온: ${currentWeather.temp}°C
