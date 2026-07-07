@@ -111,6 +111,32 @@ export default function App() {
   const [forecastStep, setForecastStep] = useState<number>(0);
   const [isPlayingRadar, setIsPlayingRadar] = useState<boolean>(true);
 
+  // 17개 시/도 고정 지역의 "실제" 날씨 값. 처음엔 정적 시드값으로 보여주고
+  // 마운트 시 /api/weather/regions로 실제 기상청 값을 받아 덮어쓴다.
+  const [liveRegions, setLiveRegions] = useState<WeatherData[]>(regionsData);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/weather/regions");
+        if (!res.ok) return;
+        const real: Record<string, Partial<WeatherData> | null> = await res.json();
+        if (cancelled) return;
+
+        setLiveRegions((prev) =>
+          prev.map((reg) => (real[reg.id] ? { ...reg, ...real[reg.id] } : reg))
+        );
+        setSelectedRegion((prev) => (real[prev.id] ? { ...prev, ...real[prev.id] } : prev));
+      } catch {
+        /* 실패해도 기존 시드값으로 계속 동작 */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Home/Preferred Region State
   const [homeRegionId, setHomeRegionId] = useState<string | null>(() => {
     return localStorage.getItem("climate_buddy_home_region_id");
@@ -190,7 +216,7 @@ export default function App() {
         console.error("Failed to parse home region data:", e);
       }
     } else if (savedHomeId) {
-      const match = regionsData.find(r => r.id === savedHomeId);
+      const match = liveRegions.find(r => r.id === savedHomeId);
       if (match) {
         setSelectedRegion(match);
       } else {
@@ -543,7 +569,7 @@ export default function App() {
     try {
       // First check if it matches a local region in regionsData
       const queryLower = searchQuery.trim().toLowerCase();
-      const localMatch = regionsData.find(
+      const localMatch = liveRegions.find(
         (reg) =>
           reg.name.toLowerCase().includes(queryLower) ||
           reg.englishName.toLowerCase().includes(queryLower)
@@ -949,7 +975,7 @@ export default function App() {
                   <span className="text-[10px] text-slate-400 font-medium">단축 설정:</span>
                   {homeRegionId ? (
                     (() => {
-                      const homeReg = regionsData.find(r => r.id === homeRegionId) || customRegions.find(r => r.id === homeRegionId);
+                      const homeReg = liveRegions.find(r => r.id === homeRegionId) || customRegions.find(r => r.id === homeRegionId);
                       if (homeReg) {
                         return (
                           <button
@@ -972,7 +998,7 @@ export default function App() {
                   )}
 
                   {/* Show preset popular regions for ease of navigation */}
-                  {regionsData.slice(0, 3).map((reg) => (
+                  {liveRegions.slice(0, 3).map((reg) => (
                     <button
                       key={`preset-quick-${reg.id}`}
                       onClick={() => setSelectedRegion(reg)}
@@ -1044,7 +1070,7 @@ export default function App() {
                     {/* Simulated RADAR CLOUD HEATMAP cell rings (toggled under radarOn) */}
                     {radarOn && (
                       <g>
-                        {regionsData.map((reg) => {
+                        {liveRegions.map((reg) => {
                           const stepsPrecipitation = reg.radarForecast[forecastStep];
                           if (stepsPrecipitation === 0) return null;
 
@@ -1112,7 +1138,7 @@ export default function App() {
                     )}
 
                     {/* Regional Interactive Interactive Pins */}
-                    {regionsData.map((reg) => {
+                    {liveRegions.map((reg) => {
                       const isSelected = selectedRegion.id === reg.id;
                       const hasRain = reg.rain > 0;
                       const isHome = homeRegionId === reg.id;

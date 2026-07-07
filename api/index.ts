@@ -36,6 +36,150 @@ function getAi(): GoogleGenAI {
   return ai;
 }
 
+// =====================================================================
+// 실제 기상청(KMA) 연동 — 지금까지는 온도/습도/강수 전부 AI 추측이나 해시 기반
+// 가짜 시뮬레이션이라 실제 날씨와 다를 수밖에 없었다. 여기서부터는 각 지역의
+// 기상청 격자좌표(nx, ny)로 초단기예보(getUltraSrtFcst)를 직접 호출해 실제
+// 값으로 대체한다.
+// =====================================================================
+const KMA_API_KEY = process.env.KMA_API_KEY;
+const KMA_ULTRA_FCST_URL = "https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getUltraSrtFcst";
+const KMA_MISSING_HIGH = 900;
+const KMA_MISSING_LOW = -900;
+
+// 17개 시/도 대표 지점의 기상청 격자좌표 (도청/시청 인근 기준, 근사치)
+const REGION_GRID: Record<string, { nx: number; ny: number }> = {
+  seoul: { nx: 60, ny: 127 },
+  incheon: { nx: 55, ny: 124 },
+  gyeonggi: { nx: 60, ny: 120 },
+  gangwon: { nx: 73, ny: 134 },
+  chungbuk: { nx: 69, ny: 106 },
+  chungnam: { nx: 68, ny: 100 },
+  daejeon: { nx: 67, ny: 100 },
+  sejong: { nx: 66, ny: 103 },
+  jeonbuk: { nx: 63, ny: 89 },
+  jeonnam: { nx: 51, ny: 67 },
+  gwangju: { nx: 58, ny: 74 },
+  gyeongbuk: { nx: 91, ny: 106 },
+  gyeongnam: { nx: 91, ny: 77 },
+  daegu: { nx: 89, ny: 90 },
+  ulsan: { nx: 102, ny: 84 },
+  busan: { nx: 98, ny: 76 },
+  jeju: { nx: 52, ny: 38 },
+};
+
+function kmaValueOrNull(raw: string): number | null {
+  const n = Number(raw);
+  if (Number.isNaN(n)) return null;
+  if (n >= KMA_MISSING_HIGH || n <= KMA_MISSING_LOW) return null;
+  return n;
+}
+
+function kmaFormatDate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}${m}${day}`;
+}
+
+// 초단기예보는 매시 30분 생성 + 반영 지연을 감안해 45분 여유를 둔다.
+function getLatestUltraBaseDateTime(now: Date): { baseDate: string; baseTime: string } {
+  const cursor = new Date(now.getTime() - 45 * 60 * 1000);
+  let baseHour = cursor.getHours();
+  let baseDate = cursor;
+  if (cursor.getMinutes() < 30) baseHour -= 1;
+  if (baseHour < 0) {
+    baseDate = new Date(cursor);
+    baseDate.setDate(baseDate.getDate() - 1);
+    baseHour = 23;
+  }
+  return { baseDate: kmaFormatDate(baseDate), baseTime: `${String(baseHour).padStart(2, "0")}30` };
+}
+
+interface RealWeatherSnapshot {
+  temp: number;
+  humidity: number;
+  wind: number;
+  rain: number;
+  condition: "sunny" | "cloudy" | "rainy" | "windy" | "thunderstorm";
+  radarForecast: number[];
+}
+
+// nx,ny 격자좌표로 실제 초단기예보를 호출해 "현재 + 향후 6단계 강수량"을 만든다.
+// 실패하면 null을 반환해 호출부가 기존 시뮬레이션으로 안전하게 대체할 수 있게 한다.
+async function fetchRealWeatherSnapshot(nx: number, ny: number): Promise<RealWeatherSnapshot | null> {
+  if (!KMA_API_KEY) return null;
+
+  try {
+    const now = new Date();
+    const { baseDate, baseTime } = getLatestUltraBaseDateTime(now);
+    const url = new URL(KMA_ULTRA_FCST_URL);
+    url.searchParams.set("serviceKey", KMA_API_KEY);
+    url.searchParams.set("dataType", "JSON");
+    url.searchParams.set("numOfRows", "100");
+    url.searchParams.set("pageNo", "1");
+    url.searchParams.set("base_date", baseDate);
+    url.searchParams.set("base_time", baseTime);
+    url.searchParams.set("nx", String(nx));
+    url.searchParams.set("ny", String(ny));
+
+    const res = await fetch(url.toString());
+    if (!res.ok) return null;
+    const json: any = await res.json();
+    if (json?.response?.header?.resultCode !== "00") return null;
+
+    const items: any[] = json.response.body?.items?.item ?? [];
+    const byTime = new Map<string, { pty: number | null; rn1: string | null; t1h: number | null; reh: number | null; wsd: number | null; sky: number | null }>();
+
+    for (const item of items) {
+      let slot = byTime.get(item.fcstTime);
+      if (!slot) {
+        slot = { pty: null, rn1: null, t1h: null, reh: null, wsd: null, sky: null };
+        byTime.set(item.fcstTime, slot);
+      }
+      if (item.category === "PTY") slot.pty = kmaValueOrNull(item.fcstValue);
+      if (item.category === "RN1") slot.rn1 = item.fcstValue;
+      if (item.category === "T1H") slot.t1h = kmaValueOrNull(item.fcstValue);
+      if (item.category === "REH") slot.reh = kmaValueOrNull(item.fcstValue);
+      if (item.category === "WSD") slot.wsd = kmaValueOrNull(item.fcstValue);
+      if (item.category === "SKY") slot.sky = kmaValueOrNull(item.fcstValue);
+    }
+
+    const sortedTimes = Array.from(byTime.keys()).sort();
+    if (sortedTimes.length === 0) return null;
+
+    const parseRain = (rn1: string | null): number => {
+      if (!rn1) return 0;
+      const n = parseFloat(rn1);
+      return Number.isNaN(n) ? 0 : n;
+    };
+
+    const current = byTime.get(sortedTimes[0])!;
+    const radarForecast = sortedTimes.slice(0, 6).map((t) => parseRain(byTime.get(t)!.rn1));
+    while (radarForecast.length < 6) radarForecast.push(radarForecast[radarForecast.length - 1] ?? 0);
+
+    const rain = parseRain(current.rn1);
+    const wind = current.wsd ?? 1.5;
+    let condition: RealWeatherSnapshot["condition"] = "sunny";
+    if (rain > 10) condition = "thunderstorm";
+    else if (rain > 0 || (current.pty ?? 0) > 0) condition = "rainy";
+    else if (wind >= 7) condition = "windy";
+    else if ((current.sky ?? 1) >= 3) condition = "cloudy";
+
+    return {
+      temp: current.t1h ?? 20,
+      humidity: current.reh ?? 60,
+      wind,
+      rain,
+      condition,
+      radarForecast,
+    };
+  } catch (error) {
+    console.error("[KMA] 실제 날씨 조회 실패, 시뮬레이션으로 대체:", error);
+    return null;
+  }
+}
+
 // 실제 한국 행정구역명(구/군/동 등)을 인식했는지 확인. 이 경우엔 지리 정보가 항상
 // 정해져 있으므로(예: 동대문구는 언제나 서울) AI의 확률적 추측 대신 이 로컬 매칭을
 // 신뢰해서, 잘못된 지역으로 튀는 오분류(예: 동대문구 → 경상남도) 를 원천 차단한다.
@@ -63,7 +207,7 @@ function isKnownKoreanRegion(query: string): boolean {
 }
 
 // Robust local geocoding & weather simulator fallback with deep "dong" level support
-function getFallbackWeatherData(query: string): any {
+async function getFallbackWeatherData(query: string): Promise<any> {
   const queryClean = query.trim().replace(/\s+/g, " ");
   const queryLower = queryClean.toLowerCase();
 
@@ -80,6 +224,9 @@ function getFallbackWeatherData(query: string): any {
   // Calculate small deterministic offsets to spread out multiple dongs in the same city
   const offsetX = (charCodeSum % 7) - 3; // -3 to +3
   const offsetY = ((charCodeSum >> 2) % 7) - 3; // -3 to +3
+
+  // 실제 KMA 데이터 조회용 지역 키 (REGION_GRID의 키와 일치)
+  let regionKey: string | null = null;
 
   // 1. Seoul / Gyeonggi-do (Northwest)
   const isSeoul = queryLower.includes("서울") || queryLower.includes("강남") || queryLower.includes("강동") || queryLower.includes("강북") || queryLower.includes("관악") || queryLower.includes("광진") || queryLower.includes("구로") || queryLower.includes("금천") || queryLower.includes("노원") || queryLower.includes("도봉") || queryLower.includes("동대문") || queryLower.includes("동작") || queryLower.includes("마포") || queryLower.includes("서대문") || queryLower.includes("서초") || queryLower.includes("성동") || queryLower.includes("성북") || queryLower.includes("송파") || queryLower.includes("양천") || queryLower.includes("영등포") || queryLower.includes("용산") || queryLower.includes("은평") || queryLower.includes("종로") || queryLower.includes("중랑") || queryLower.includes("역삼") || queryLower.includes("삼성") || queryLower.includes("청담") || queryLower.includes("신사") || queryLower.includes("방배") || queryLower.includes("합정") || queryLower.includes("망원") || queryLower.includes("여의도") || queryLower.includes("홍대") || queryLower.includes("잠실") || queryLower.includes("성수") || queryLower.includes("혜화");
@@ -115,6 +262,7 @@ function getFallbackWeatherData(query: string): any {
   let englishName = "";
 
   if (isSeoul) {
+    regionKey = "seoul";
     x = 35 + offsetX;
     y = 22 + offsetY;
     const district = queryClean.includes("구") ? parts.find(p => p.endsWith("구")) || "강남구" : "강남구";
@@ -122,6 +270,7 @@ function getFallbackWeatherData(query: string): any {
     fullAddress = dong ? `서울특별시 ${district} ${dong}` : `서울특별시 ${district}`;
     englishName = dong ? `${dong.replace("동", "")}-dong, Seoul` : `Seoul`;
   } else if (isIncheon) {
+    regionKey = "incheon";
     x = 26 + offsetX;
     y = 22 + offsetY;
     const district = queryClean.includes("구") ? parts.find(p => p.endsWith("구")) || "연수구" : "연수구";
@@ -129,6 +278,7 @@ function getFallbackWeatherData(query: string): any {
     fullAddress = dong ? `인천광역시 ${district} ${dong}` : `인천광역시 ${district}`;
     englishName = dong ? `${dong.replace("동", "")}-dong, Incheon` : `Incheon`;
   } else if (isGyeonggi) {
+    regionKey = "gyeonggi";
     x = 38 + offsetX;
     y = 26 + offsetY;
     const city = queryClean.includes("시") ? parts.find(p => p.endsWith("시")) || "성남시" : "성남시";
@@ -137,6 +287,7 @@ function getFallbackWeatherData(query: string): any {
     fullAddress = dong ? `경기도 ${city} ${district} ${dong}` : `경기도 ${city} ${district}`;
     englishName = dong ? `${dong.replace("동", "")}-dong, ${city}` : `${city}`;
   } else if (isBusan) {
+    regionKey = "busan";
     x = 64 + offsetX;
     y = 68 + offsetY;
     const district = queryClean.includes("구") ? parts.find(p => p.endsWith("구")) || "해운대구" : "해운대구";
@@ -144,6 +295,7 @@ function getFallbackWeatherData(query: string): any {
     fullAddress = dong ? `부산광역시 ${district} ${dong}` : `부산광역시 ${district}`;
     englishName = dong ? `${dong.replace("동", "")}-dong, Busan` : `Busan`;
   } else if (isDaegu) {
+    regionKey = "daegu";
     x = 58 + offsetX;
     y = 53 + offsetY;
     const district = queryClean.includes("구") ? parts.find(p => p.endsWith("구")) || "수성구" : "수성구";
@@ -151,6 +303,7 @@ function getFallbackWeatherData(query: string): any {
     fullAddress = dong ? `대구광역시 ${district} ${dong}` : `대구광역시 ${district}`;
     englishName = dong ? `${dong.replace("동", "")}-dong, Daegu` : `Daegu`;
   } else if (isUlsan) {
+    regionKey = "ulsan";
     x = 69 + offsetX;
     y = 58 + offsetY;
     const district = queryClean.includes("구") ? parts.find(p => p.endsWith("구")) || "남구" : "남구";
@@ -158,6 +311,7 @@ function getFallbackWeatherData(query: string): any {
     fullAddress = dong ? `울산광역시 ${district} ${dong}` : `울산광역시 ${district}`;
     englishName = dong ? `${dong.replace("동", "")}-dong, Ulsan` : `Ulsan`;
   } else if (isDaejeon) {
+    regionKey = "daejeon";
     x = 40 + offsetX;
     y = 44 + offsetY;
     const district = queryClean.includes("구") ? parts.find(p => p.endsWith("구")) || "유성구" : "유성구";
@@ -165,12 +319,14 @@ function getFallbackWeatherData(query: string): any {
     fullAddress = dong ? `대전광역시 ${district} ${dong}` : `대전광역시 ${district}`;
     englishName = dong ? `${dong.replace("동", "")}-dong, Daejeon` : `Daejeon`;
   } else if (isSejong) {
+    regionKey = "sejong";
     x = 37 + offsetX;
     y = 39 + offsetY;
     const dong = name.endsWith("동") ? name : "";
     fullAddress = dong ? `세종특별자치시 ${dong}` : `세종특별자치시`;
     englishName = dong ? `${dong.replace("동", "")}-dong, Sejong` : `Sejong`;
   } else if (isGangwon) {
+    regionKey = "gangwon";
     x = 60 + offsetX;
     y = 18 + offsetY;
     const city = queryClean.includes("시") ? parts.find(p => p.endsWith("시")) || "강릉시" : "강릉시";
@@ -181,11 +337,13 @@ function getFallbackWeatherData(query: string): any {
     x = 42 + offsetX;
     y = 41 + offsetY;
     const province = queryLower.includes("충북") ? "충청북도" : "충청남도";
+    regionKey = queryLower.includes("충북") ? "chungbuk" : "chungnam";
     const city = queryClean.includes("시") ? parts.find(p => p.endsWith("시")) || "천안시" : "천안시";
     const dong = name.endsWith("동") ? name : "";
     fullAddress = dong ? `${province} ${city} ${dong}` : `${province} ${city}`;
     englishName = dong ? `${dong.replace("동", "")}-dong, ${city}` : `${city}`;
   } else if (isGwangju) {
+    regionKey = "gwangju";
     x = 28 + offsetX;
     y = 67 + offsetY;
     const district = queryClean.includes("구") ? parts.find(p => p.endsWith("구")) || "북구" : "북구";
@@ -196,6 +354,7 @@ function getFallbackWeatherData(query: string): any {
     x = 26 + offsetX;
     y = 64 + offsetY;
     const province = queryLower.includes("전북") ? "전라북도" : "전라남도";
+    regionKey = queryLower.includes("전북") ? "jeonbuk" : "jeonnam";
     const city = queryClean.includes("시") ? parts.find(p => p.endsWith("시")) || "전주시" : "전주시";
     const dong = name.endsWith("동") ? name : "";
     fullAddress = dong ? `${province} ${city} ${dong}` : `${province} ${city}`;
@@ -204,6 +363,7 @@ function getFallbackWeatherData(query: string): any {
     x = 64 + offsetX;
     y = 52 + offsetY;
     const province = queryLower.includes("경북") ? "경상북도" : "경상남도";
+    regionKey = queryLower.includes("경북") ? "gyeongbuk" : "gyeongnam";
     const city = queryClean.includes("시") ? parts.find(p => p.endsWith("시")) || "포항시" : "창원시";
     const dong = name.endsWith("동") ? name : "";
     fullAddress = dong ? `${province} ${city} ${dong}` : `${province} ${city}`;
@@ -211,6 +371,7 @@ function getFallbackWeatherData(query: string): any {
   } else if (isJeju) {
     x = 25 + offsetX;
     y = 93 + offsetY;
+    regionKey = "jeju";
     const city = queryClean.includes("서귀포") ? "서귀포시" : "제주시";
     const dong = name.endsWith("동") ? name : "";
     fullAddress = dong ? `제주특별자치도 ${city} ${dong}` : `제주특별자치도 ${city}`;
@@ -236,13 +397,13 @@ function getFallbackWeatherData(query: string): any {
   x = Math.max(5, Math.min(95, x));
   y = Math.max(5, Math.min(105, y));
 
-  const temp = 22.0 + parseFloat(((charCodeSum % 110) / 10).toFixed(1));
-  const humidity = 50 + (charCodeSum % 46);
-  const wind = parseFloat((0.5 + (charCodeSum % 8) / 1.5).toFixed(1));
-  const rain = (charCodeSum % 5 === 0) ? parseFloat(((charCodeSum % 15) + 0.5).toFixed(1)) : 0.0;
-  const condition = rain > 10.0 ? "thunderstorm" : (rain > 0 ? "rainy" : (humidity > 80 ? "cloudy" : "sunny"));
+  let temp = 22.0 + parseFloat(((charCodeSum % 110) / 10).toFixed(1));
+  let humidity = 50 + (charCodeSum % 46);
+  let wind = parseFloat((0.5 + (charCodeSum % 8) / 1.5).toFixed(1));
+  let rain = (charCodeSum % 5 === 0) ? parseFloat(((charCodeSum % 15) + 0.5).toFixed(1)) : 0.0;
+  let condition: RealWeatherSnapshot["condition"] = rain > 10.0 ? "thunderstorm" : (rain > 0 ? "rainy" : (humidity > 80 ? "cloudy" : "sunny"));
 
-  const radarForecast = [
+  let radarForecast = [
     rain,
     Math.max(0, parseFloat((rain * 1.2 + (rain === 0 ? 0 : 0.5)).toFixed(1))),
     Math.max(0, parseFloat((rain * 1.5 + (rain === 0 ? 0 : 1.0)).toFixed(1))),
@@ -250,6 +411,20 @@ function getFallbackWeatherData(query: string): any {
     Math.max(0, parseFloat((rain * 0.3).toFixed(1))),
     Math.max(0, parseFloat((rain * 0.05).toFixed(1))),
   ];
+
+  // 인식된 실제 행정구역이면 시뮬레이션 대신 실제 기상청 값으로 덮어쓴다.
+  if (regionKey && REGION_GRID[regionKey]) {
+    const grid = REGION_GRID[regionKey];
+    const real = await fetchRealWeatherSnapshot(grid.nx, grid.ny);
+    if (real) {
+      temp = real.temp;
+      humidity = real.humidity;
+      wind = real.wind;
+      rain = real.rain;
+      condition = real.condition;
+      radarForecast = real.radarForecast;
+    }
+  }
 
   return {
     id: `custom-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
@@ -467,7 +642,7 @@ app.post("/api/weather/search", async (req, res) => {
     // 실제 행정구역명(동대문구, 역삼동 등)이면 AI의 확률적 추측 대신 결정적인 로컬
     // 매칭을 신뢰한다 — 실제 지역인데 엉뚱한 도/시로 잘못 나오는 문제를 원천 차단.
     if (!apiKey || isKnownKoreanRegion(query)) {
-      return res.json(getFallbackWeatherData(query));
+      return res.json(await getFallbackWeatherData(query));
     }
 
     const client = getAi();
@@ -529,8 +704,20 @@ Do not include any markdown backticks (\`\`\`json) in your response. Just return
     res.json(data);
   } catch (error: any) {
     console.error("Error in weather search API:", error);
-    res.json(getFallbackWeatherData(query));
+    res.json(await getFallbackWeatherData(query));
   }
+});
+
+// 4. API: 17개 시/도 고정 지역(히트맵)의 실제 날씨로 갱신
+// 프론트의 regionsData(이름/좌표 등)는 그대로 두고, 날씨 값만 실제 값으로 교체한다.
+app.get("/api/weather/regions", async (_req, res) => {
+  const entries = await Promise.all(
+    Object.entries(REGION_GRID).map(async ([id, grid]) => {
+      const real = await fetchRealWeatherSnapshot(grid.nx, grid.ny);
+      return [id, real] as const;
+    })
+  );
+  res.json(Object.fromEntries(entries));
 });
 
 export default app;
