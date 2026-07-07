@@ -5,6 +5,7 @@ import app from "./app";
 
 const PORT = 3000;
 
+// 3. Serve Frontend & Vite Integration
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
