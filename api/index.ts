@@ -36,6 +36,32 @@ function getAi(): GoogleGenAI {
   return ai;
 }
 
+// 실제 한국 행정구역명(구/군/동 등)을 인식했는지 확인. 이 경우엔 지리 정보가 항상
+// 정해져 있으므로(예: 동대문구는 언제나 서울) AI의 확률적 추측 대신 이 로컬 매칭을
+// 신뢰해서, 잘못된 지역으로 튀는 오분류(예: 동대문구 → 경상남도) 를 원천 차단한다.
+function isKnownKoreanRegion(query: string): boolean {
+  const queryLower = query.trim().toLowerCase();
+  const seoulGu = ["서울", "강남", "강동", "강북", "관악", "광진", "구로", "금천", "노원", "도봉", "동대문", "동작", "마포", "서대문", "서초", "성동", "성북", "송파", "양천", "영등포", "용산", "은평", "종로", "중랑", "역삼", "삼성", "청담", "신사", "방배", "합정", "망원", "여의도", "홍대", "잠실", "성수", "혜화"];
+  const busanGu = ["부산", "해운대", "광안", "수영", "영도", "동래", "남포", "금정", "사상", "사하", "연제", "부산진", "기장"];
+  const incheonGu = ["인천", "송도", "부평", "구월", "미추홀", "계양", "연수구", "강화", "옹진"];
+  const gyeonggiCity = ["경기", "성남", "분당", "판교", "수원", "용인", "고양", "일산", "부천", "안산", "화성", "동탄", "남양주", "평택"];
+  const gangwon = ["강원", "강릉", "속초", "춘천", "원주", "양양", "동해", "삼척"];
+  const daejeon = ["대전", "유성", "대덕"];
+  const sejong = ["세종"];
+  const chungcheong = ["충청", "충북", "충남", "천안", "청주", "아산", "충주"];
+  const gwangju = ["광주", "서구 내방로", "광산구"];
+  const jeolla = ["전라", "전북", "전남", "전주", "익산", "군산", "여수", "순천", "목포"];
+  const daegu = ["대구", "수성", "달서", "달성"];
+  const ulsan = ["울산", "울주"];
+  const gyeongsang = ["경상", "경북", "경남", "포항", "경주", "창원", "김해", "진주", "구미", "안동"];
+  const jeju = ["제주", "서귀포", "노형", "연동", "애월"];
+
+  return [
+    ...seoulGu, ...busanGu, ...incheonGu, ...gyeonggiCity, ...gangwon, ...daejeon,
+    ...sejong, ...chungcheong, ...gwangju, ...jeolla, ...daegu, ...ulsan, ...gyeongsang, ...jeju,
+  ].some((keyword) => queryLower.includes(keyword.toLowerCase()));
+}
+
 // Robust local geocoding & weather simulator fallback with deep "dong" level support
 function getFallbackWeatherData(query: string): any {
   const queryClean = query.trim().replace(/\s+/g, " ");
@@ -56,9 +82,9 @@ function getFallbackWeatherData(query: string): any {
   const offsetY = ((charCodeSum >> 2) % 7) - 3; // -3 to +3
 
   // 1. Seoul / Gyeonggi-do (Northwest)
-  const isSeoul = queryLower.includes("서울") || queryLower.includes("강남") || queryLower.includes("서초") || queryLower.includes("역삼") || queryLower.includes("마포") || queryLower.includes("송파") || queryLower.includes("종로") || queryLower.includes("성동") || queryLower.includes("용산") || queryLower.includes("삼성") || queryLower.includes("청담") || queryLower.includes("신사") || queryLower.includes("방배") || queryLower.includes("합정") || queryLower.includes("망원") || queryLower.includes("여의도") || queryLower.includes("홍대") || queryLower.includes("잠실") || queryLower.includes("성수") || queryLower.includes("혜화");
+  const isSeoul = queryLower.includes("서울") || queryLower.includes("강남") || queryLower.includes("강동") || queryLower.includes("강북") || queryLower.includes("관악") || queryLower.includes("광진") || queryLower.includes("구로") || queryLower.includes("금천") || queryLower.includes("노원") || queryLower.includes("도봉") || queryLower.includes("동대문") || queryLower.includes("동작") || queryLower.includes("마포") || queryLower.includes("서대문") || queryLower.includes("서초") || queryLower.includes("성동") || queryLower.includes("성북") || queryLower.includes("송파") || queryLower.includes("양천") || queryLower.includes("영등포") || queryLower.includes("용산") || queryLower.includes("은평") || queryLower.includes("종로") || queryLower.includes("중랑") || queryLower.includes("역삼") || queryLower.includes("삼성") || queryLower.includes("청담") || queryLower.includes("신사") || queryLower.includes("방배") || queryLower.includes("합정") || queryLower.includes("망원") || queryLower.includes("여의도") || queryLower.includes("홍대") || queryLower.includes("잠실") || queryLower.includes("성수") || queryLower.includes("혜화");
   
-  const isIncheon = queryLower.includes("인천") || queryLower.includes("송도") || queryLower.includes("부평") || queryLower.includes("구월");
+  const isIncheon = queryLower.includes("인천") || queryLower.includes("송도") || queryLower.includes("부평") || queryLower.includes("구월") || queryLower.includes("미추홀") || queryLower.includes("계양") || queryLower.includes("연수구") || queryLower.includes("강화") || queryLower.includes("옹진");
   
   const isGyeonggi = queryLower.includes("경기") || queryLower.includes("성남") || queryLower.includes("분당") || queryLower.includes("판교") || queryLower.includes("수원") || queryLower.includes("용인") || queryLower.includes("고양") || queryLower.includes("일산") || queryLower.includes("부천") || queryLower.includes("안산") || queryLower.includes("화성") || queryLower.includes("동탄") || queryLower.includes("남양주") || queryLower.includes("평택");
 
@@ -66,18 +92,18 @@ function getFallbackWeatherData(query: string): any {
   const isGangwon = queryLower.includes("강원") || queryLower.includes("강릉") || queryLower.includes("속초") || queryLower.includes("춘천") || queryLower.includes("원주") || queryLower.includes("양양") || queryLower.includes("동해") || queryLower.includes("삼척");
 
   // 3. Chungcheong-do / Daejeon / Sejong (Center)
-  const isDaejeon = queryLower.includes("대전") || queryLower.includes("유성");
+  const isDaejeon = queryLower.includes("대전") || queryLower.includes("유성") || queryLower.includes("대덕");
   const isSejong = queryLower.includes("세종");
   const isChungcheong = queryLower.includes("충청") || queryLower.includes("충북") || queryLower.includes("충남") || queryLower.includes("천안") || queryLower.includes("청주") || queryLower.includes("아산") || queryLower.includes("충주");
 
   // 4. Jeolla-do / Gwangju (Southwest)
-  const isGwangju = queryLower.includes("광주") || queryLower.includes("서구 내방로");
+  const isGwangju = queryLower.includes("광주") || queryLower.includes("서구 내방로") || queryLower.includes("광산구");
   const isJeolla = queryLower.includes("전라") || queryLower.includes("전북") || queryLower.includes("전남") || queryLower.includes("전주") || queryLower.includes("익산") || queryLower.includes("군산") || queryLower.includes("여수") || queryLower.includes("순천") || queryLower.includes("목포");
 
   // 5. Gyeongsang-do / Busan / Daegu / Ulsan (Southeast)
-  const isBusan = queryLower.includes("부산") || queryLower.includes("해운대") || queryLower.includes("광안") || queryLower.includes("수영") || queryLower.includes("영도") || queryLower.includes("동래") || queryLower.includes("남포");
-  const isDaegu = queryLower.includes("대구") || queryLower.includes("수성");
-  const isUlsan = queryLower.includes("울산") || queryLower.includes("남구");
+  const isBusan = queryLower.includes("부산") || queryLower.includes("해운대") || queryLower.includes("광안") || queryLower.includes("수영") || queryLower.includes("영도") || queryLower.includes("동래") || queryLower.includes("남포") || queryLower.includes("금정") || queryLower.includes("사상") || queryLower.includes("사하") || queryLower.includes("연제") || queryLower.includes("부산진") || queryLower.includes("기장");
+  const isDaegu = queryLower.includes("대구") || queryLower.includes("수성") || queryLower.includes("달서") || queryLower.includes("달성");
+  const isUlsan = queryLower.includes("울산") || queryLower.includes("울주");
   const isGyeongsang = queryLower.includes("경상") || queryLower.includes("경북") || queryLower.includes("경남") || queryLower.includes("포항") || queryLower.includes("경주") || queryLower.includes("창원") || queryLower.includes("김해") || queryLower.includes("진주") || queryLower.includes("구미") || queryLower.includes("안동");
 
   // 6. Jeju-do (South Island)
@@ -92,103 +118,103 @@ function getFallbackWeatherData(query: string): any {
     x = 35 + offsetX;
     y = 22 + offsetY;
     const district = queryClean.includes("구") ? parts.find(p => p.endsWith("구")) || "강남구" : "강남구";
-    const dong = name.endsWith("동") ? name : "역삼동";
-    fullAddress = `서울특별시 ${district} ${dong}`;
-    englishName = `${dong.replace("동", "")}-dong, Seoul`;
+    const dong = name.endsWith("동") ? name : "";
+    fullAddress = dong ? `서울특별시 ${district} ${dong}` : `서울특별시 ${district}`;
+    englishName = dong ? `${dong.replace("동", "")}-dong, Seoul` : `Seoul`;
   } else if (isIncheon) {
     x = 26 + offsetX;
     y = 22 + offsetY;
     const district = queryClean.includes("구") ? parts.find(p => p.endsWith("구")) || "연수구" : "연수구";
-    const dong = name.endsWith("동") ? name : "송도동";
-    fullAddress = `인천광역시 ${district} ${dong}`;
-    englishName = `${dong.replace("동", "")}-dong, Incheon`;
+    const dong = name.endsWith("동") ? name : "";
+    fullAddress = dong ? `인천광역시 ${district} ${dong}` : `인천광역시 ${district}`;
+    englishName = dong ? `${dong.replace("동", "")}-dong, Incheon` : `Incheon`;
   } else if (isGyeonggi) {
     x = 38 + offsetX;
     y = 26 + offsetY;
     const city = queryClean.includes("시") ? parts.find(p => p.endsWith("시")) || "성남시" : "성남시";
     const district = queryClean.includes("구") ? parts.find(p => p.endsWith("구")) || "분당구" : "분당구";
-    const dong = name.endsWith("동") ? name : "삼평동";
-    fullAddress = `경기도 ${city} ${district} ${dong}`;
-    englishName = `${dong.replace("동", "")}-dong, ${city}`;
+    const dong = name.endsWith("동") ? name : "";
+    fullAddress = dong ? `경기도 ${city} ${district} ${dong}` : `경기도 ${city} ${district}`;
+    englishName = dong ? `${dong.replace("동", "")}-dong, ${city}` : `${city}`;
   } else if (isBusan) {
     x = 64 + offsetX;
     y = 68 + offsetY;
     const district = queryClean.includes("구") ? parts.find(p => p.endsWith("구")) || "해운대구" : "해운대구";
-    const dong = name.endsWith("동") ? name : "우동";
-    fullAddress = `부산광역시 ${district} ${dong}`;
-    englishName = `${dong.replace("동", "")}-dong, Busan`;
+    const dong = name.endsWith("동") ? name : "";
+    fullAddress = dong ? `부산광역시 ${district} ${dong}` : `부산광역시 ${district}`;
+    englishName = dong ? `${dong.replace("동", "")}-dong, Busan` : `Busan`;
   } else if (isDaegu) {
     x = 58 + offsetX;
     y = 53 + offsetY;
     const district = queryClean.includes("구") ? parts.find(p => p.endsWith("구")) || "수성구" : "수성구";
-    const dong = name.endsWith("동") ? name : "범어동";
-    fullAddress = `대구광역시 ${district} ${dong}`;
-    englishName = `${dong.replace("동", "")}-dong, Daegu`;
+    const dong = name.endsWith("동") ? name : "";
+    fullAddress = dong ? `대구광역시 ${district} ${dong}` : `대구광역시 ${district}`;
+    englishName = dong ? `${dong.replace("동", "")}-dong, Daegu` : `Daegu`;
   } else if (isUlsan) {
     x = 69 + offsetX;
     y = 58 + offsetY;
     const district = queryClean.includes("구") ? parts.find(p => p.endsWith("구")) || "남구" : "남구";
-    const dong = name.endsWith("동") ? name : "삼산동";
-    fullAddress = `울산광역시 ${district} ${dong}`;
-    englishName = `${dong.replace("동", "")}-dong, Ulsan`;
+    const dong = name.endsWith("동") ? name : "";
+    fullAddress = dong ? `울산광역시 ${district} ${dong}` : `울산광역시 ${district}`;
+    englishName = dong ? `${dong.replace("동", "")}-dong, Ulsan` : `Ulsan`;
   } else if (isDaejeon) {
     x = 40 + offsetX;
     y = 44 + offsetY;
     const district = queryClean.includes("구") ? parts.find(p => p.endsWith("구")) || "유성구" : "유성구";
-    const dong = name.endsWith("동") ? name : "궁동";
-    fullAddress = `대전광역시 ${district} ${dong}`;
-    englishName = `${dong.replace("동", "")}-dong, Daejeon`;
+    const dong = name.endsWith("동") ? name : "";
+    fullAddress = dong ? `대전광역시 ${district} ${dong}` : `대전광역시 ${district}`;
+    englishName = dong ? `${dong.replace("동", "")}-dong, Daejeon` : `Daejeon`;
   } else if (isSejong) {
     x = 37 + offsetX;
     y = 39 + offsetY;
-    const dong = name.endsWith("동") ? name : "보람동";
-    fullAddress = `세종특별자치시 ${dong}`;
-    englishName = `${dong.replace("동", "")}-dong, Sejong`;
+    const dong = name.endsWith("동") ? name : "";
+    fullAddress = dong ? `세종특별자치시 ${dong}` : `세종특별자치시`;
+    englishName = dong ? `${dong.replace("동", "")}-dong, Sejong` : `Sejong`;
   } else if (isGangwon) {
     x = 60 + offsetX;
     y = 18 + offsetY;
     const city = queryClean.includes("시") ? parts.find(p => p.endsWith("시")) || "강릉시" : "강릉시";
-    const dong = name.endsWith("동") ? name : "포남동";
-    fullAddress = `강원특별자치도 ${city} ${dong}`;
-    englishName = `${dong.replace("동", "")}-dong, ${city}`;
+    const dong = name.endsWith("동") ? name : "";
+    fullAddress = dong ? `강원특별자치도 ${city} ${dong}` : `강원특별자치도 ${city}`;
+    englishName = dong ? `${dong.replace("동", "")}-dong, ${city}` : `${city}`;
   } else if (isChungcheong) {
     x = 42 + offsetX;
     y = 41 + offsetY;
     const province = queryLower.includes("충북") ? "충청북도" : "충청남도";
     const city = queryClean.includes("시") ? parts.find(p => p.endsWith("시")) || "천안시" : "천안시";
-    const dong = name.endsWith("동") ? name : "신부동";
-    fullAddress = `${province} ${city} ${dong}`;
-    englishName = `${dong.replace("동", "")}-dong, ${city}`;
+    const dong = name.endsWith("동") ? name : "";
+    fullAddress = dong ? `${province} ${city} ${dong}` : `${province} ${city}`;
+    englishName = dong ? `${dong.replace("동", "")}-dong, ${city}` : `${city}`;
   } else if (isGwangju) {
     x = 28 + offsetX;
     y = 67 + offsetY;
     const district = queryClean.includes("구") ? parts.find(p => p.endsWith("구")) || "북구" : "북구";
-    const dong = name.endsWith("동") ? name : "용봉동";
-    fullAddress = `광주광역시 ${district} ${dong}`;
-    englishName = `${dong.replace("동", "")}-dong, Gwangju`;
+    const dong = name.endsWith("동") ? name : "";
+    fullAddress = dong ? `광주광역시 ${district} ${dong}` : `광주광역시 ${district}`;
+    englishName = dong ? `${dong.replace("동", "")}-dong, Gwangju` : `Gwangju`;
   } else if (isJeolla) {
     x = 26 + offsetX;
     y = 64 + offsetY;
     const province = queryLower.includes("전북") ? "전라북도" : "전라남도";
     const city = queryClean.includes("시") ? parts.find(p => p.endsWith("시")) || "전주시" : "전주시";
-    const dong = name.endsWith("동") ? name : "효자동";
-    fullAddress = `${province} ${city} ${dong}`;
-    englishName = `${dong.replace("동", "")}-dong, ${city}`;
+    const dong = name.endsWith("동") ? name : "";
+    fullAddress = dong ? `${province} ${city} ${dong}` : `${province} ${city}`;
+    englishName = dong ? `${dong.replace("동", "")}-dong, ${city}` : `${city}`;
   } else if (isGyeongsang) {
     x = 64 + offsetX;
     y = 52 + offsetY;
     const province = queryLower.includes("경북") ? "경상북도" : "경상남도";
     const city = queryClean.includes("시") ? parts.find(p => p.endsWith("시")) || "포항시" : "창원시";
-    const dong = name.endsWith("동") ? name : "상남동";
-    fullAddress = `${province} ${city} ${dong}`;
-    englishName = `${dong.replace("동", "")}-dong, ${city}`;
+    const dong = name.endsWith("동") ? name : "";
+    fullAddress = dong ? `${province} ${city} ${dong}` : `${province} ${city}`;
+    englishName = dong ? `${dong.replace("동", "")}-dong, ${city}` : `${city}`;
   } else if (isJeju) {
     x = 25 + offsetX;
     y = 93 + offsetY;
     const city = queryClean.includes("서귀포") ? "서귀포시" : "제주시";
-    const dong = name.endsWith("동") ? name : "노형동";
-    fullAddress = `제주특별자치도 ${city} ${dong}`;
-    englishName = `${dong.replace("동", "")}-dong, Jeju`;
+    const dong = name.endsWith("동") ? name : "";
+    fullAddress = dong ? `제주특별자치도 ${city} ${dong}` : `제주특별자치도 ${city}`;
+    englishName = dong ? `${dong.replace("동", "")}-dong, Jeju` : `Jeju`;
   } else {
     x = 25 + (charCodeSum % 40);
     y = 15 + ((charCodeSum >> 2) % 65);
@@ -438,7 +464,9 @@ app.post("/api/weather/search", async (req, res) => {
   }
 
   try {
-    if (!apiKey) {
+    // 실제 행정구역명(동대문구, 역삼동 등)이면 AI의 확률적 추측 대신 결정적인 로컬
+    // 매칭을 신뢰한다 — 실제 지역인데 엉뚱한 도/시로 잘못 나오는 문제를 원천 차단.
+    if (!apiKey || isKnownKoreanRegion(query)) {
       return res.json(getFallbackWeatherData(query));
     }
 
