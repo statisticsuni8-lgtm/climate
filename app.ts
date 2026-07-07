@@ -147,4 +147,74 @@ ${weatherContext}
   }
 });
 
+// 3. API: Weather & Address Search Geocoding
+app.post("/api/weather/search", async (req, res) => {
+  try {
+    const { query } = req.body;
+    if (!query || typeof query !== "string") {
+      return res.status(400).json({ error: "Query is required" });
+    }
+    const client = getAi();
+
+    const systemInstruction = `
+You are a highly professional Korean geographical search and meteorological simulation engine.
+The user is searching for a location in South Korea (e.g., "역삼동", "제주 서귀포", "강릉시", "부산 영도구").
+
+Your tasks:
+1. Parse the search query and find the real-world official address (도로명 주소 or 지번 주소) of this location.
+2. Estimate its coordinate coordinates (x, y) relative to our South Korea SVG map boundary (viewBox="0 0 100 110"):
+   Here is the geographic reference for coordinates:
+   - Seoul/Incheon/Gyeonggi (Northwest): x is 25 to 45, y is 15 to 30. Example: Seoul is (35, 22), Incheon is (26, 22), Gyeonggi is (42, 25).
+   - Gangwon (Northeast/East): x is 50 to 75, y is 12 to 32. Example: Gangwon center is (58, 18).
+   - Chungcheong/Daejeon/Sejong (Center/West-Center): x is 30 to 50, y is 35 to 48. Example: Daejeon is (40, 44), Sejong is (37, 39).
+   - Jeolla/Gwangju (Southwest): x is 20 to 35, y is 50 to 80. Example: Jeonnam is (26, 72), Gwangju is (28, 67).
+   - Gyeongsang/Daegu/Busan/Ulsan (Southeast): x is 50 to 75, y is 40 to 75. Example: Busan is (64, 68), Daegu is (58, 53), Gyeongbuk is (64, 44).
+   - Jeju (South Island): x is 20 to 30, y is 90 to 100. Example: Jeju is (25, 93).
+   Please map the query's real location to a highly accurate (x, y) coordinate inside these ranges. For example, if they search "역삼동", it's in Seoul, so it should be near x: 35, y: 22. If they search "해운대", it's in Busan, so it should be near x: 64, y: 68.
+3. Generate realistic, localized, and logically consistent weather parameters for this specific location.
+   If the region matches a general area of South Korea, align its weather with that area's weather parameters, but add slight variations:
+   - Temperature (temp): between 20.0 and 34.0°C.
+   - Humidity (humidity): between 50 and 95%.
+   - Wind Speed (wind): between 0.5 and 10.0 m/s.
+   - Rain/Precipitation rate (rain): between 0.0 and 30.0 mm/h.
+   - Condition: Must be one of "sunny" | "cloudy" | "rainy" | "windy" | "thunderstorm". Make sure it is consistent with the rain value (e.g. if rain > 10, use "rainy" or "thunderstorm"; if rain == 0, use "sunny", "cloudy" or "windy").
+   - radarForecast: Must be an array of exactly 6 numbers representing simulated radar forecasting for [current, +1h, +2h, +3h, +4h, +6h] starting with the current 'rain' value as the first element, and simulated progression for the next hours.
+
+You must respond STRICTLY with a valid JSON object matching this structure:
+{
+  "id": "A unique lowercase string id (e.g., 'seoul-yeoksam')",
+  "name": "Short Korean name of the searched location (e.g., '역삼동')",
+  "englishName": "English translation (e.g., 'Yeoksam-dong')",
+  "fullAddress": "The official full address of this location in South Korea (e.g., '서울특별시 강남구 역삼동')",
+  "x": 35.2,
+  "y": 22.4,
+  "temp": 28.3,
+  "humidity": 81,
+  "wind": 2.3,
+  "rain": 4.5,
+  "condition": "rainy",
+  "radarForecast": [4.5, 6.0, 8.5, 3.2, 1.0, 0.0]
+}
+Do not include any markdown backticks (\`\`\`json) in your response. Just return the raw JSON string.
+`;
+
+    const response = await client.models.generateContent({
+      model: "gemini-3.5-flash",
+      contents: `Search and generate weather for query: "${query}"`,
+      config: {
+        systemInstruction: systemInstruction,
+        responseMimeType: "application/json",
+        temperature: 0.3,
+      },
+    });
+
+    const text = response.text || "{}";
+    const data = JSON.parse(text.trim());
+    res.json(data);
+  } catch (error: any) {
+    console.error("Error in weather search API:", error);
+    res.status(500).json({ error: error.message || "Failed to search location" });
+  }
+});
+
 export default app;

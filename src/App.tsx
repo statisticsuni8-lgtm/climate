@@ -26,7 +26,9 @@ import {
   MapPin,
   ChevronRight,
   ThumbsUp,
-  Droplets
+  Droplets,
+  Smartphone,
+  Monitor
 } from "lucide-react";
 import {
   regionsData,
@@ -34,6 +36,62 @@ import {
   rcpScenariosData,
   WeatherData
 } from "./data";
+
+// Sleek iPhone Mockup Frame Wrapper for Mobile Preview Mode
+interface MobileFrameWrapperProps {
+  children: React.ReactNode;
+  isMobile: boolean;
+}
+
+const MobileFrameWrapper = ({ children, isMobile }: MobileFrameWrapperProps) => {
+  if (!isMobile) {
+    return (
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
+        {children}
+      </main>
+    );
+  }
+
+  return (
+    <div className="flex justify-center py-6 px-4">
+      {/* Device Body */}
+      <div className="relative w-[385px] h-[820px] rounded-[52px] border-[12px] border-slate-900 bg-slate-950 shadow-[0_0_60px_rgba(0,0,0,0.8),0_0_0_1px_rgba(255,255,255,0.08)] overflow-hidden flex flex-col ring-1 ring-white/10">
+        
+        {/* Notch / Speaker Bar */}
+        <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-5 bg-slate-950 rounded-b-xl z-50 flex items-center justify-center border-b border-x border-slate-900/60">
+          <div className="w-10 h-1 bg-slate-900 rounded-full" />
+        </div>
+        
+        {/* Mock iPhone Status Bar */}
+        <div className="h-9 px-6 pt-2 flex justify-between items-center text-[10px] font-mono text-slate-400 bg-slate-950/90 z-40 select-none shrink-0 border-b border-slate-900/40">
+          <span className="font-semibold text-slate-300">09:41</span>
+          <div className="flex items-center gap-1.5">
+            <span className="flex items-end gap-[1px]">
+              <span className="w-[1.2px] h-[3px] bg-slate-400 rounded-sm"></span>
+              <span className="w-[1.2px] h-[5px] bg-slate-400 rounded-sm"></span>
+              <span className="w-[1.2px] h-[7px] bg-slate-400 rounded-sm"></span>
+              <span className="w-[1.2px] h-[9px] bg-slate-400 rounded-sm"></span>
+            </span>
+            <span className="text-[9px] text-slate-300">5G</span>
+            <span className="w-4 h-2.5 border border-slate-500 rounded p-[0.5px] flex items-center">
+              <span className="h-full w-2.5 bg-emerald-400 rounded-sm"></span>
+            </span>
+          </div>
+        </div>
+
+        {/* Device Viewport */}
+        <div className="flex-1 overflow-y-auto overflow-x-hidden relative bg-slate-950 scrollbar-none pb-12 pt-1.5">
+          <div className="px-3.5 space-y-4">
+            {children}
+          </div>
+        </div>
+
+        {/* Home Indicator */}
+        <div className="absolute bottom-1.5 left-1/2 transform -translate-x-1/2 w-28 h-1 bg-white/20 rounded-full z-50 pointer-events-none" />
+      </div>
+    </div>
+  );
+};
 
 export default function App() {
   // Region & Radar States
@@ -47,6 +105,7 @@ export default function App() {
   const [isSearching, setIsSearching] = useState<boolean>(false);
   const [customRegions, setCustomRegions] = useState<WeatherData[]>([]);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [isMobileFrame, setIsMobileFrame] = useState<boolean>(false);
 
   // AI Commentary States
   const [aiCommentary, setAiCommentary] = useState<{
@@ -388,13 +447,34 @@ export default function App() {
                 </span>
               )}
             </button>
+
+            {/* Mobile Device Mockup View Switch */}
+            <button
+              id="header_device_toggle"
+              onClick={() => setIsMobileFrame(!isMobileFrame)}
+              className={`p-2 rounded-xl border transition-all flex items-center gap-2 text-xs cursor-pointer ${
+                isMobileFrame 
+                  ? "bg-purple-500/20 border-purple-500/40 text-purple-300 hover:text-white"
+                  : "bg-slate-900 border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800"
+              }`}
+              title={isMobileFrame ? "데스크톱 전체 뷰로 전환" : "아이폰 모바일 앱 뷰로 전환"}
+            >
+              {isMobileFrame ? (
+                <Monitor className="w-4 h-4 text-purple-400" />
+              ) : (
+                <Smartphone className="w-4 h-4 text-purple-400 animate-pulse" />
+              )}
+              <span className="hidden sm:inline">
+                {isMobileFrame ? "데스크톱 뷰" : "모바일 앱 뷰"}
+              </span>
+            </button>
           </div>
 
         </div>
       </header>
 
       {/* 3. Main Dashboard Layout Container */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
+      <MobileFrameWrapper isMobile={isMobileFrame}>
         
         {/* TAB 1: Weather Dashboard & Radar */}
         {activeTab === "weather" && (
@@ -743,11 +823,16 @@ export default function App() {
                 )}
 
                 {/* Bottom Right: Selection indicator */}
-                <div className="absolute bottom-3 right-3 bg-slate-950/90 border border-sky-500/30 px-3 py-1.5 rounded-lg z-10 flex items-center gap-2">
-                  <MapPin className="w-3.5 h-3.5 text-sky-400" />
-                  <div>
+                <div className="absolute bottom-3 right-3 bg-slate-950/90 border border-sky-500/30 px-3 py-1.5 rounded-lg z-10 flex items-center gap-2 max-w-[240px]">
+                  <MapPin className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                  <div className="min-w-0">
                     <div className="text-[8px] font-mono text-slate-400">SELECTED REGION</div>
-                    <div className="text-xs font-bold text-white leading-none">{selectedRegion.name} ({selectedRegion.englishName})</div>
+                    <div className="text-xs font-bold text-white leading-none truncate">{selectedRegion.name} ({selectedRegion.englishName})</div>
+                    {selectedRegion.fullAddress && (
+                      <div className="text-[9px] text-slate-400 truncate mt-1" title={selectedRegion.fullAddress}>
+                        {selectedRegion.fullAddress}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -828,6 +913,12 @@ export default function App() {
                       <h2 className="text-2xl font-bold tracking-tight text-white">{selectedRegion.name}</h2>
                       <span className="text-xs font-mono text-slate-400 font-semibold">{selectedRegion.englishName}</span>
                     </div>
+                    {selectedRegion.fullAddress && (
+                      <div className="text-[11px] text-sky-400/80 font-medium flex items-center gap-1 mt-0.5">
+                        <MapPin className="w-3 h-3 shrink-0" />
+                        <span>{selectedRegion.fullAddress}</span>
+                      </div>
+                    )}
                     <div className="flex items-center gap-2 mt-1.5 text-xs text-slate-300 font-medium">
                       <span>체감 기상: </span>
                       <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${diInfo.color}`}>
@@ -1392,7 +1483,7 @@ export default function App() {
           </div>
         )}
 
-      </main>
+      </MobileFrameWrapper>
 
       {/* 4. Persistent Chatbot Bubble & Drawer overlay */}
       <AnimatePresence>
