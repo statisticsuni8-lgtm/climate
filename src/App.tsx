@@ -155,8 +155,22 @@ export default function App() {
       }
     }
 
+    // Recover home region via robust dual-fallback hydrated state
     const savedHomeId = localStorage.getItem("climate_buddy_home_region_id");
-    if (savedHomeId) {
+    const savedHomeData = localStorage.getItem("climate_buddy_home_region_data");
+    
+    if (savedHomeData) {
+      try {
+        const parsedHomeData = JSON.parse(savedHomeData) as WeatherData;
+        setSelectedRegion(parsedHomeData);
+        // Make sure it is also in customRegions if it is custom
+        if (parsedHomeData.id.startsWith("custom-") && !loadedCustoms.some(r => r.id === parsedHomeData.id)) {
+          setCustomRegions(prev => [...prev, parsedHomeData]);
+        }
+      } catch (e) {
+        console.error("Failed to parse home region data:", e);
+      }
+    } else if (savedHomeId) {
       const match = regionsData.find(r => r.id === savedHomeId);
       if (match) {
         setSelectedRegion(match);
@@ -171,9 +185,7 @@ export default function App() {
 
   // Save custom regions when changed
   useEffect(() => {
-    if (customRegions.length > 0) {
-      localStorage.setItem("climate_buddy_custom_regions", JSON.stringify(customRegions));
-    }
+    localStorage.setItem("climate_buddy_custom_regions", JSON.stringify(customRegions));
   }, [customRegions]);
 
   // Toggle/Set home region
@@ -181,9 +193,11 @@ export default function App() {
     if (homeRegionId === regionId) {
       setHomeRegionId(null);
       localStorage.removeItem("climate_buddy_home_region_id");
+      localStorage.removeItem("climate_buddy_home_region_data");
     } else {
       setHomeRegionId(regionId);
       localStorage.setItem("climate_buddy_home_region_id", regionId);
+      localStorage.setItem("climate_buddy_home_region_data", JSON.stringify(selectedRegion));
     }
   };
 
@@ -1655,20 +1669,20 @@ export default function App() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
             
             {/* CARD 1: Historical Climate Trend Chart (Custom animated SVG) */}
-            <div id="historical_trends_card" className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 backdrop-blur-sm">
+            <div id="historical_trends_card" className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-1.5">
-                    <TrendingUp className="w-4 h-4 text-sky-400" />
+                  <h3 className="text-sm font-semibold text-slate-800 flex items-center gap-1.5">
+                    <TrendingUp className="w-4 h-4 text-sky-600" />
                     과거 35년간 한반도 평균 기온 변화 트렌드 (1990 ~ 2025)
                   </h3>
-                  <p className="text-xs text-slate-400 mt-0.5">한반도의 온난화 속도는 전 세계 평균보다 가파르게 상승하고 있습니다.</p>
+                  <p className="text-xs text-slate-500 mt-0.5">한반도의 온난화 속도는 전 세계 평균보다 가파르게 상승하고 있습니다.</p>
                 </div>
-                <span className="px-2 py-0.5 bg-rose-500/10 text-rose-400 border border-rose-500/20 text-[10px] font-mono rounded">위기 위험</span>
+                <span className="px-2 py-0.5 bg-rose-50 text-rose-600 border border-rose-200 text-[10px] font-mono rounded font-bold">위기 위험</span>
               </div>
 
               {/* High Quality Custom SVG Line Chart */}
-              <div className="relative h-[280px] w-full bg-slate-950/40 rounded-xl border border-slate-800/40 p-4 flex flex-col justify-between">
+              <div className="relative h-[280px] w-full bg-slate-50 border border-slate-150 rounded-xl p-4 flex flex-col justify-between">
                 
                 <div className="flex-1 relative">
                   <svg className="w-full h-full" viewBox="0 0 100 50" preserveAspectRatio="none">
@@ -1676,15 +1690,15 @@ export default function App() {
                     {/* Gradients */}
                     <defs>
                       <linearGradient id="area-temp-grad" x1="0%" y1="0%" x2="0%" y2="100%">
-                        <stop offset="0%" stopColor="rgba(239, 68, 68, 0.25)" />
+                        <stop offset="0%" stopColor="rgba(239, 68, 68, 0.2)" />
                         <stop offset="100%" stopColor="rgba(239, 68, 68, 0.0)" />
                       </linearGradient>
                     </defs>
 
                     {/* Y Gridlines */}
-                    <line x1="0" y1="10" x2="100" y2="10" stroke="rgba(255,255,255,0.05)" strokeWidth="0.1" />
-                    <line x1="0" y1="25" x2="100" y2="25" stroke="rgba(255,255,255,0.05)" strokeWidth="0.1" />
-                    <line x1="0" y1="40" x2="100" y2="40" stroke="rgba(255,255,255,0.05)" strokeWidth="0.1" />
+                    <line x1="0" y1="10" x2="100" y2="10" stroke="rgba(15,23,42,0.06)" strokeWidth="0.1" />
+                    <line x1="0" y1="25" x2="100" y2="25" stroke="rgba(15,23,42,0.06)" strokeWidth="0.1" />
+                    <line x1="0" y1="40" x2="100" y2="40" stroke="rgba(15,23,42,0.06)" strokeWidth="0.1" />
 
                     {/* Area fill for Temperature trend */}
                     <path
@@ -1713,9 +1727,9 @@ export default function App() {
                           y={50 - barHeight}
                           width="3"
                           height={barHeight}
-                          fill="rgba(245, 158, 11, 0.4)"
+                          fill="rgba(245, 158, 11, 0.35)"
                           rx="0.5"
-                          className="transition-all hover:fill-amber-400 cursor-pointer"
+                          className="transition-all hover:fill-amber-500 cursor-pointer"
                         />
                       );
                     })}
@@ -1731,8 +1745,8 @@ export default function App() {
                           L 85.7 ${50 - (historicalClimateData[6].avgTemp - 11) * 12}
                           L 100 ${50 - (historicalClimateData[7].avgTemp - 11) * 12}`}
                       fill="none"
-                      stroke="#f87171"
-                      strokeWidth="1.2"
+                      stroke="#ef4444"
+                      strokeWidth="1.5"
                     />
 
                     {/* Line dots and interactive trigger zones */}
@@ -1744,9 +1758,9 @@ export default function App() {
                           <circle
                             cx={x}
                             cy={y}
-                            r="1.2"
-                            fill="#f87171"
-                            stroke="rgba(15, 23, 42, 0.9)"
+                            r="1.5"
+                            fill="#ef4444"
+                            stroke="#ffffff"
                             strokeWidth="0.5"
                             onMouseEnter={() => setHistoryTooltipIndex(idx)}
                             onMouseLeave={() => setHistoryTooltipIndex(null)}
@@ -1770,30 +1784,30 @@ export default function App() {
                   {/* HTML tooltip overlay */}
                   {historyTooltipIndex !== null && (
                     <div
-                      className="absolute bg-slate-900/95 border border-slate-800 p-2.5 rounded-lg shadow-xl text-xs z-10 w-44 pointer-events-none"
+                      className="absolute bg-white/95 border border-slate-200 p-2.5 rounded-lg shadow-md text-xs z-10 w-44 pointer-events-none"
                       style={{
                         left: `${Math.min(65, (historyTooltipIndex / 7) * 100)}%`,
                         top: "10%",
                       }}
                     >
-                      <div className="font-bold text-white mb-1 font-mono">
+                      <div className="font-bold text-slate-800 mb-1 font-mono">
                         {historicalClimateData[historyTooltipIndex].year}년 통계
                       </div>
-                      <div className="flex justify-between mb-0.5 text-slate-400">
+                      <div className="flex justify-between mb-0.5 text-slate-500">
                         <span>평균 기온:</span>
-                        <span className="font-mono text-rose-400 font-bold">
+                        <span className="font-mono text-rose-600 font-bold">
                           {historicalClimateData[historyTooltipIndex].avgTemp}°C
                         </span>
                       </div>
-                      <div className="flex justify-between mb-0.5 text-slate-400">
+                      <div className="flex justify-between mb-0.5 text-slate-500">
                         <span>폭염일수:</span>
-                        <span className="font-mono text-amber-400">
+                        <span className="font-mono text-amber-600">
                           {historicalClimateData[historyTooltipIndex].heatwaveDays}일
                         </span>
                       </div>
-                      <div className="flex justify-between text-slate-400">
+                      <div className="flex justify-between text-slate-500">
                         <span>열대야일수:</span>
-                        <span className="font-mono text-indigo-400">
+                        <span className="font-mono text-indigo-600">
                           {historicalClimateData[historyTooltipIndex].tropicalNights}일
                         </span>
                       </div>
@@ -1803,7 +1817,7 @@ export default function App() {
                 </div>
 
                 {/* X axis labels */}
-                <div className="flex justify-between text-[10px] font-mono text-slate-500 border-t border-slate-800 pt-1">
+                <div className="flex justify-between text-[10px] font-mono text-slate-400 border-t border-slate-100 pt-1">
                   {historicalClimateData.map((d) => (
                     <span key={`lbl-yr-${d.year}`}>{d.year}</span>
                   ))}
@@ -1812,50 +1826,50 @@ export default function App() {
               </div>
 
               {/* Chart Legend */}
-              <div className="flex items-center gap-4 mt-3 text-xs justify-center font-mono text-slate-400">
+              <div className="flex items-center gap-4 mt-3 text-xs justify-center font-mono text-slate-500">
                 <div className="flex items-center gap-1.5">
                   <span className="w-3 h-0.5 bg-rose-500 block"></span>
                   <span>연간 평균 기온 (°C, 좌축)</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="w-3 h-2 rounded bg-amber-500/50 block"></span>
+                  <span className="w-3 h-2 rounded bg-amber-500/40 block"></span>
                   <span>폭염일수 (33°C 이상 일수, 우축)</span>
                 </div>
               </div>
 
               {/* Climate Alert Note */}
-              <div className="mt-4 bg-rose-500/5 border border-rose-500/10 p-3 rounded-xl flex items-start gap-2.5">
-                <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-                <div className="text-xs text-slate-300 leading-relaxed">
-                  <strong>기상 이변 빈도 급증:</strong> 지난 30년간 한국의 여름 폭염일수는 무려 <strong>290% 증가</strong>했으며, 남부지방의 열대야 발생 빈도가 강원 내륙 지방까지 지속적으로 확대 확장되고 있습니다.
+              <div className="mt-4 bg-rose-50/50 border border-rose-100 p-3 rounded-xl flex items-start gap-2.5 shadow-sm">
+                <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+                <div className="text-xs text-slate-600 leading-relaxed">
+                  <strong className="text-rose-600">기상 이변 빈도 급증:</strong> 지난 30년간 한국의 여름 폭염일수는 무려 <strong>290% 증가</strong>했으며, 남부지방의 열대야 발생 빈도가 강원 내륙 지방까지 지속적으로 확대 확장되고 있습니다.
                 </div>
               </div>
 
             </div>
 
             {/* CARD 2: Future Climate Projections RCP Scenario Chart */}
-            <div id="future_scenarios_card" className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 backdrop-blur-sm">
+            <div id="future_scenarios_card" className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-1.5">
-                    <TrendingUp className="w-4 h-4 text-amber-400" />
+                  <h3 className="text-sm font-semibold text-slate-800 flex items-center gap-1.5">
+                    <TrendingUp className="w-4 h-4 text-amber-600" />
                     미래 기후 예측 시나리오 (RCP 4.5 vs RCP 8.5)
                   </h3>
-                  <p className="text-xs text-slate-400 mt-0.5">2050년까지 온실가스 감축 여부에 따른 두 가지 기후 모델링 분석입니다.</p>
+                  <p className="text-xs text-slate-500 mt-0.5">2050년까지 온실가스 감축 여부에 따른 두 가지 기후 모델링 분석입니다.</p>
                 </div>
-                <span className="px-2 py-0.5 bg-slate-800 text-[10px] font-mono rounded text-slate-400">KMA 모델</span>
+                <span className="px-2 py-0.5 bg-slate-100 text-[10px] font-mono rounded text-slate-500 font-bold border border-slate-200">KMA 모델</span>
               </div>
 
               {/* High Quality Custom SVG Line Chart */}
-              <div className="relative h-[280px] w-full bg-slate-950/40 rounded-xl border border-slate-800/40 p-4 flex flex-col justify-between">
+              <div className="relative h-[280px] w-full bg-slate-50 border border-slate-150 rounded-xl p-4 flex flex-col justify-between">
                 
                 <div className="flex-1 relative">
                   <svg className="w-full h-full" viewBox="0 0 100 50" preserveAspectRatio="none">
                     
                     {/* Y Gridlines */}
-                    <line x1="0" y1="10" x2="100" y2="10" stroke="rgba(255,255,255,0.05)" strokeWidth="0.1" />
-                    <line x1="0" y1="25" x2="100" y2="25" stroke="rgba(255,255,255,0.05)" strokeWidth="0.1" />
-                    <line x1="0" y1="40" x2="100" y2="40" stroke="rgba(255,255,255,0.05)" strokeWidth="0.1" />
+                    <line x1="0" y1="10" x2="100" y2="10" stroke="rgba(15,23,42,0.06)" strokeWidth="0.1" />
+                    <line x1="0" y1="25" x2="100" y2="25" stroke="rgba(15,23,42,0.06)" strokeWidth="0.1" />
+                    <line x1="0" y1="40" x2="100" y2="40" stroke="rgba(15,23,42,0.06)" strokeWidth="0.1" />
 
                     {/* Line for RCP 4.5 (Moderate reduction, sky blue / green) */}
                     <path
@@ -1867,7 +1881,7 @@ export default function App() {
                           L 100 ${50 - (rcpScenariosData[5].rcp45Temp - 13) * 11}`}
                       fill="none"
                       stroke="#10b981"
-                      strokeWidth="1.2"
+                      strokeWidth="1.5"
                       strokeDasharray="1,1"
                     />
 
@@ -1893,8 +1907,10 @@ export default function App() {
                           key={`pt-45-${idx}`}
                           cx={x}
                           cy={y}
-                          r="1"
+                          r="1.2"
                           fill="#10b981"
+                          stroke="#ffffff"
+                          strokeWidth="0.4"
                           className="cursor-pointer"
                         />
                       );
@@ -1909,9 +1925,9 @@ export default function App() {
                           <circle
                             cx={x}
                             cy={y}
-                            r="1.2"
+                            r="1.5"
                             fill="#ef4444"
-                            stroke="rgba(15, 23, 42, 0.9)"
+                            stroke="#ffffff"
                             strokeWidth="0.5"
                             className="cursor-pointer"
                           />
@@ -1933,30 +1949,30 @@ export default function App() {
                   {/* HTML tooltip overlay */}
                   {rcpTooltipIndex !== null && (
                     <div
-                      className="absolute bg-slate-900/95 border border-slate-800 p-2.5 rounded-lg shadow-xl text-xs z-10 w-44 pointer-events-none"
+                      className="absolute bg-white/95 border border-slate-200 p-2.5 rounded-lg shadow-md text-xs z-10 w-44 pointer-events-none"
                       style={{
                         left: `${Math.min(65, (rcpTooltipIndex / 5) * 100)}%`,
                         top: "10%",
                       }}
                     >
-                      <div className="font-bold text-white mb-1 font-mono">
+                      <div className="font-bold text-slate-800 mb-1 font-mono">
                         {rcpScenariosData[rcpTooltipIndex].year}년 예측치
                       </div>
-                      <div className="flex justify-between mb-0.5 text-emerald-400">
+                      <div className="flex justify-between mb-0.5 text-emerald-600 font-semibold">
                         <span>RCP 4.5 기온:</span>
                         <span className="font-mono">
                           {rcpScenariosData[rcpTooltipIndex].rcp45Temp}°C
                         </span>
                       </div>
-                      <div className="flex justify-between mb-0.5 text-rose-400 font-bold">
+                      <div className="flex justify-between mb-0.5 text-rose-600 font-semibold">
                         <span>RCP 8.5 기온:</span>
                         <span className="font-mono">
                           {rcpScenariosData[rcpTooltipIndex].rcp85Temp}°C
                         </span>
                       </div>
-                      <div className="flex justify-between text-slate-400 mt-1 pt-1 border-t border-slate-800">
+                      <div className="flex justify-between text-slate-500 mt-1 pt-1 border-t border-slate-100">
                         <span>RCP 8.5 폭염일수:</span>
-                        <span className="font-mono text-amber-400">
+                        <span className="font-mono text-amber-600 font-semibold">
                           {rcpScenariosData[rcpTooltipIndex].rcp85Days}일
                         </span>
                       </div>
@@ -1966,7 +1982,7 @@ export default function App() {
                 </div>
 
                 {/* X axis labels */}
-                <div className="flex justify-between text-[10px] font-mono text-slate-500 border-t border-slate-800 pt-1">
+                <div className="flex justify-between text-[10px] font-mono text-slate-400 border-t border-slate-100 pt-1">
                   {rcpScenariosData.map((d) => (
                     <span key={`lbl-fut-yr-${d.year}`}>{d.year}</span>
                   ))}
@@ -1975,7 +1991,7 @@ export default function App() {
               </div>
 
               {/* Chart Legend */}
-              <div className="flex items-center gap-4 mt-3 text-xs justify-center font-mono text-slate-400">
+              <div className="flex items-center gap-4 mt-3 text-xs justify-center font-mono text-slate-500">
                 <div className="flex items-center gap-1.5">
                   <span className="w-3 h-0.5 bg-emerald-500 block border-dashed border-t"></span>
                   <span>RCP 4.5 (자율 감축 시나리오)</span>
@@ -1987,10 +2003,10 @@ export default function App() {
               </div>
 
               {/* Climate Alert Note */}
-              <div className="mt-4 bg-sky-500/5 border border-sky-500/10 p-3 rounded-xl flex items-start gap-2.5">
-                <Info className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
-                <div className="text-xs text-slate-300 leading-relaxed">
-                  <strong>시나리오 해석:</strong> 현 탄소 배출 추이가 유지되면(RCP 8.5), 2050년 한반도 폭염일수는 무려 <strong>연간 52일</strong>에 달해 연중 두 달 가량이 정상적인 실외 활동이 불가능한 극한 기후로 변모할 우려가 큽니다.
+              <div className="mt-4 bg-sky-50/50 border border-sky-100 p-3 rounded-xl flex items-start gap-2.5 shadow-sm">
+                <Info className="w-4 h-4 text-sky-500 shrink-0 mt-0.5" />
+                <div className="text-xs text-slate-600 leading-relaxed">
+                  <strong className="text-sky-600">시나리오 해석:</strong> 현 탄소 배출 추이가 유지되면(RCP 8.5), 2050년 한반도 폭염일수는 무려 <strong>연간 52일</strong>에 달해 연중 두 달 가량이 정상적인 실외 활동이 불가능한 극한 기후로 변모할 우려가 큽니다.
                 </div>
               </div>
 
@@ -2010,28 +2026,28 @@ export default function App() {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 100 }}
             transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            className="fixed top-0 right-0 h-screen w-full sm:w-[440px] bg-slate-900 border-l border-slate-800 shadow-2xl z-50 flex flex-col"
+            className="fixed top-0 right-0 h-screen w-full sm:w-[440px] bg-white border-l border-slate-200 shadow-2xl z-50 flex flex-col"
           >
             {/* Drawer Header */}
-            <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950">
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
               <div className="flex items-center gap-2">
-                <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
                 <div>
-                  <h3 className="text-sm font-semibold text-white">클라이밋 버디 (Climate Buddy)</h3>
-                  <p className="text-[10px] text-slate-400">Gemini 3.5 기반 기후/날씨 전문 지식 비서</p>
+                  <h3 className="text-sm font-bold text-slate-800">클라이밋 버디 (Climate Buddy)</h3>
+                  <p className="text-[10px] text-slate-500">Gemini 3.5 기반 기후/날씨 전문 지식 비서</p>
                 </div>
               </div>
               <button
                 id="close_chat_btn"
                 onClick={() => setIsChatOpen(false)}
-                className="p-1.5 hover:bg-slate-800 text-slate-400 hover:text-white rounded-lg transition-colors"
+                className="p-1.5 hover:bg-slate-200 text-slate-400 hover:text-slate-800 rounded-lg transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             {/* Chatbot Messages List Container */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/30">
               {chatMessages.map((msg, idx) => (
                 <div
                   key={`msg-${idx}`}
@@ -2040,8 +2056,8 @@ export default function App() {
                   <div
                     className={`max-w-[85%] rounded-2xl p-3 text-xs leading-relaxed whitespace-pre-wrap border ${
                       msg.role === "user"
-                        ? "bg-sky-500 text-slate-950 font-medium border-sky-400/20 rounded-tr-none"
-                        : "bg-slate-950 text-slate-200 border-slate-800 rounded-tl-none"
+                        ? "bg-sky-600 text-white font-medium border-transparent rounded-tr-none shadow-sm"
+                        : "bg-white text-slate-800 border-slate-200 rounded-tl-none shadow-sm"
                     }`}
                   >
                     {msg.content}
@@ -2051,7 +2067,7 @@ export default function App() {
 
               {isTypingChat && (
                 <div className="flex justify-start">
-                  <div className="bg-slate-950 text-slate-400 border border-slate-800 rounded-2xl rounded-tl-none p-3 text-xs flex items-center gap-2">
+                  <div className="bg-white text-slate-400 border border-slate-200 rounded-2xl rounded-tl-none p-3 text-xs flex items-center gap-2 shadow-sm">
                     <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
                     <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
                     <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
@@ -2062,14 +2078,14 @@ export default function App() {
             </div>
 
             {/* Prompt Shortcuts Grid */}
-            <div className="px-4 py-2 border-t border-slate-800/50 bg-slate-950/40">
-              <div className="text-[10px] text-slate-500 uppercase font-mono tracking-wider mb-1.5">추천 빠른 질문</div>
+            <div className="px-4 py-2.5 border-t border-slate-100 bg-slate-50/50">
+              <div className="text-[10px] text-slate-400 uppercase font-mono tracking-wider mb-1.5">추천 빠른 질문</div>
               <div className="grid grid-cols-2 gap-1.5">
                 {chatShortcuts.map((cut, idx) => (
                   <button
                     key={`cut-${idx}`}
                     onClick={() => triggerShortcut(cut.prompt)}
-                    className="p-2 text-[10px] text-left text-slate-300 hover:text-white bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg truncate transition-colors leading-tight"
+                    className="p-2 text-[10px] text-left text-slate-600 hover:text-slate-950 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg truncate transition-colors leading-tight cursor-pointer shadow-sm"
                   >
                     {cut.text}
                   </button>
@@ -2078,7 +2094,7 @@ export default function App() {
             </div>
 
             {/* Chat Input Bar */}
-            <form onSubmit={handleSendChatMessage} className="p-4 border-t border-slate-800 bg-slate-950">
+            <form onSubmit={handleSendChatMessage} className="p-4 border-t border-slate-200 bg-white">
               <div className="flex gap-2">
                 <input
                   id="chat_input_field"
@@ -2086,13 +2102,13 @@ export default function App() {
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
                   placeholder="예: 서울 비 많이 오는데 패션 스타일 어때?"
-                  className="flex-1 bg-slate-900 border border-slate-800 text-xs text-white placeholder-slate-500 px-3 py-2 rounded-xl focus:outline-none focus:border-sky-500/50"
+                  className="flex-1 bg-slate-50 border border-slate-200 text-xs text-slate-800 placeholder-slate-400 px-3 py-2 rounded-xl focus:outline-none focus:bg-white focus:border-sky-500 transition-colors"
                 />
                 <button
                   id="send_chat_btn"
                   type="submit"
                   disabled={!chatInput.trim() || isTypingChat}
-                  className="p-2.5 bg-sky-500 hover:bg-sky-400 disabled:bg-slate-800 disabled:text-slate-600 text-slate-950 rounded-xl transition-colors shrink-0"
+                  className="p-2.5 bg-sky-600 hover:bg-sky-500 disabled:bg-slate-100 disabled:text-slate-400 text-white rounded-xl transition-colors shrink-0 cursor-pointer shadow-sm"
                 >
                   <Send className="w-4 h-4" />
                 </button>
@@ -2108,7 +2124,7 @@ export default function App() {
         <button
           id="floating_chat_trigger"
           onClick={() => setIsChatOpen(true)}
-          className="fixed bottom-6 right-6 p-4 bg-sky-500 hover:bg-sky-400 text-slate-950 rounded-full shadow-2xl shadow-sky-500/20 border border-sky-400/30 z-40 transition-transform hover:scale-105"
+          className="fixed bottom-6 right-6 p-4 bg-sky-600 hover:bg-sky-500 text-white rounded-full shadow-2xl border border-transparent z-40 transition-transform hover:scale-105 cursor-pointer"
           title="AI 기후 비서와 대화하기"
         >
           <MessageSquare className="w-6 h-6" />

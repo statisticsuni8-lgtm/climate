@@ -340,8 +340,15 @@ ${weatherContext}
 4. 너무 긴 서론은 생략하고 핵심과 재치를 담아 2~3문단 내외로 간결하고 가독성 좋게(줄바꿈 활용) 답변하세요.
 `;
 
+    // Filter messages to ensure the first message is from 'user'
+    let filteredMessages = messages;
+    const firstUserIndex = messages.findIndex((m: any) => m.role === "user");
+    if (firstUserIndex !== -1) {
+      filteredMessages = messages.slice(firstUserIndex);
+    }
+
     // Map conversation messages to Gemini contents structure
-    const contents = messages.map((m: any) => ({
+    const contents = filteredMessages.map((m: any) => ({
       role: m.role === "user" ? "user" : "model",
       parts: [{ text: m.content }],
     }));
