@@ -8,7 +8,7 @@ const app = express();
 
 app.use(express.json());
 
-// Initialize Gemini SDK with telemetry header
+// Initialize Gemini SDK with telemetry header as per guidelines
 const apiKey = process.env.GEMINI_API_KEY;
 let ai: GoogleGenAI | null = null;
 
@@ -98,6 +98,7 @@ app.post("/api/weather/chat", async (req, res) => {
     const { messages, currentWeather } = req.body;
     const client = getAi();
 
+    // Format weather info for context
     const weatherContext = currentWeather
       ? `현재 선택된 지역: ${currentWeather.region}
 - 기온: ${currentWeather.temp}°C
@@ -121,6 +122,7 @@ ${weatherContext}
 4. 너무 긴 서론은 생략하고 핵심과 재치를 담아 2~3문단 내외로 간결하고 가독성 좋게(줄바꿈 활용) 답변하세요.
 `;
 
+    // Map conversation messages to Gemini contents structure
     const contents = messages.map((m: any) => ({
       role: m.role === "user" ? "user" : "model",
       parts: [{ text: m.content }],

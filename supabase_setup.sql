@@ -2,12 +2,13 @@
 --  Supabase SQL Editor Setup: 기후 예측 및 AI 브리핑 시스템 데이터베이스 스키마
 -- =========================================================================
 
+-- 1. 기존 테이블이 존재할 경우 삭제 (순서 주의: 외래키 의존성 대비)
 DROP TABLE IF EXISTS weather_observations CASCADE;
 DROP TABLE IF EXISTS climate_trends CASCADE;
 DROP TABLE IF EXISTS rcp_scenarios CASCADE;
 DROP TABLE IF EXISTS user_feedbacks CASCADE;
 
--- (1) 전국 실시간 기상 관측 및 초단기 레이더 예측 테이블
+-- 2. 전국 실시간 기상 관측 및 초단기 레이더 예측 테이블 생성
 CREATE TABLE weather_observations (
     id VARCHAR(50) PRIMARY KEY,
     name VARCHAR(50) NOT NULL,
@@ -19,11 +20,11 @@ CREATE TABLE weather_observations (
     wind NUMERIC NOT NULL,
     rain NUMERIC NOT NULL,
     condition VARCHAR(50) NOT NULL,
-    radar_forecast NUMERIC[] NOT NULL, -- 6개 단계별 초단기 예보 배열
+    radar_forecast NUMERIC[] NOT NULL, -- 6개 단계별 초단기 예보 배열 [현재, +1h, +2h, +3h, +4h, +6h]
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- (2) 과거 기후 변화 데이터 테이블
+-- 3. 과거 35년간 한반도 평균 기후 변화 트렌드 테이블 생성
 CREATE TABLE climate_trends (
     year INTEGER PRIMARY KEY,
     avg_temp NUMERIC NOT NULL,
@@ -32,7 +33,7 @@ CREATE TABLE climate_trends (
     precipitation NUMERIC NOT NULL
 );
 
--- (3) 한반도 미래 기후 예측 RCP 시나리오 테이블
+-- 4. 한반도 미래 기후 예측 RCP 시나리오 테이블 생성
 CREATE TABLE rcp_scenarios (
     year INTEGER PRIMARY KEY,
     rcp45_temp NUMERIC NOT NULL,
@@ -41,7 +42,7 @@ CREATE TABLE rcp_scenarios (
     rcp85_days INTEGER NOT NULL
 );
 
--- (4) 사용자 맞춤 건의사항 및 기후 피드백 로그 테이블 (추후 확장용)
+-- 5. 사용자 맞춤 건의사항 및 기후 피드백 로그 테이블 생성 (추후 확장용)
 CREATE TABLE user_feedbacks (
     id BIGSERIAL PRIMARY KEY,
     region_id VARCHAR(50) REFERENCES weather_observations(id) ON DELETE SET NULL,
@@ -50,7 +51,11 @@ CREATE TABLE user_feedbacks (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 초기 시드 데이터 삽입
+-- =========================================================================
+--  초기 시드 데이터 삽입 (초기값 채워넣기)
+-- =========================================================================
+
+-- (1) 전국 17개 거점 실시간 기상 관측 & 초단기 레이더 예보 (mm/h)
 INSERT INTO weather_observations (id, name, english_name, x, y, temp, humidity, wind, rain, condition, radar_forecast) VALUES
 ('seoul', '서울', 'Seoul', 35, 22, 27.5, 82, 2.1, 8.5, 'rainy', ARRAY[8.5, 12.0, 15.5, 7.0, 3.2, 0.5]),
 ('incheon', '인천', 'Incheon', 26, 22, 26.8, 85, 4.8, 11.2, 'rainy', ARRAY[11.2, 8.0, 4.2, 1.5, 0.2, 0.0]),
@@ -70,6 +75,7 @@ INSERT INTO weather_observations (id, name, english_name, x, y, temp, humidity, 
 ('busan', '부산', 'Busan', 64, 68, 29.1, 68, 4.5, 0.0, 'sunny', ARRAY[0.0, 0.0, 0.0, 0.0, 0.5, 2.1]),
 ('jeju', '제주', 'Jeju', 25, 93, 28.2, 88, 5.6, 18.5, 'thunderstorm', ARRAY[18.5, 22.0, 25.0, 15.0, 8.2, 2.0]);
 
+-- (2) 과거 기후 변화 트렌드 (1990 ~ 2025)
 INSERT INTO climate_trends (year, avg_temp, heatwave_days, tropical_nights, precipitation) VALUES
 (1990, 11.8, 7.2, 4.5, 1250),
 (1995, 12.1, 9.5, 5.1, 1180),
@@ -80,6 +86,7 @@ INSERT INTO climate_trends (year, avg_temp, heatwave_days, tropical_nights, prec
 (2020, 13.5, 18.5, 14.2, 1590),
 (2025, 13.9, 21.0, 16.5, 1350);
 
+-- (3) 미래 예측 RCP 시나리오 (2025 ~ 2050)
 INSERT INTO rcp_scenarios (year, rcp45_temp, rcp85_temp, rcp45_days, rcp85_days) VALUES
 (2025, 13.9, 13.9, 21, 21),
 (2030, 14.2, 14.5, 23, 26),
@@ -88,4 +95,14 @@ INSERT INTO rcp_scenarios (year, rcp45_temp, rcp85_temp, rcp45_days, rcp85_days)
 (2045, 15.0, 16.4, 31, 45),
 (2050, 15.3, 17.2, 34, 52);
 
+-- =========================================================================
+--  테이블 인덱스 생성 (성능 최적화)
+-- =========================================================================
 CREATE INDEX idx_weather_name ON weather_observations(name);
+
+-- =========================================================================
+--  확인 쿼리 (실행 결과 테스트용)
+-- =========================================================================
+SELECT * FROM weather_observations ORDER BY name ASC;
+SELECT * FROM climate_trends ORDER BY year ASC;
+SELECT * FROM rcp_scenarios ORDER BY year ASC;
