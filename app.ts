@@ -33,143 +33,162 @@ function getAi(): GoogleGenAI {
   return ai;
 }
 
-// Robust local geocoding & weather simulator fallback
+// Robust local geocoding & weather simulator fallback with deep "dong" level support
 function getFallbackWeatherData(query: string): any {
-  const queryClean = query.trim().toLowerCase();
+  const queryClean = query.trim().replace(/\s+/g, " ");
+  const queryLower = queryClean.toLowerCase();
+
+  // Extract a clean short name (e.g. "서교동" from "서울 마포구 서교동")
+  let name = queryClean;
+  const parts = queryClean.split(" ");
+  if (parts.length > 1) {
+    name = parts[parts.length - 1];
+  }
+
+  // Calculate a deterministic seed based on the short name
+  const charCodeSum = Array.from(name).reduce((sum, char) => sum + char.charCodeAt(0), 0);
   
-  let name = query.trim();
-  let englishName = "Custom Region";
-  let fullAddress = `대한민국 경기도 성남시 분당구`;
+  // Calculate small deterministic offsets to spread out multiple dongs in the same city
+  const offsetX = (charCodeSum % 7) - 3; // -3 to +3
+  const offsetY = ((charCodeSum >> 2) % 7) - 3; // -3 to +3
+
+  // 1. Seoul / Gyeonggi-do (Northwest)
+  const isSeoul = queryLower.includes("서울") || queryLower.includes("강남") || queryLower.includes("서초") || queryLower.includes("역삼") || queryLower.includes("마포") || queryLower.includes("송파") || queryLower.includes("종로") || queryLower.includes("성동") || queryLower.includes("용산") || queryLower.includes("삼성") || queryLower.includes("청담") || queryLower.includes("신사") || queryLower.includes("방배") || queryLower.includes("합정") || queryLower.includes("망원") || queryLower.includes("여의도") || queryLower.includes("홍대") || queryLower.includes("잠실") || queryLower.includes("성수") || queryLower.includes("혜화");
+  
+  const isIncheon = queryLower.includes("인천") || queryLower.includes("송도") || queryLower.includes("부평") || queryLower.includes("구월");
+  
+  const isGyeonggi = queryLower.includes("경기") || queryLower.includes("성남") || queryLower.includes("분당") || queryLower.includes("판교") || queryLower.includes("수원") || queryLower.includes("용인") || queryLower.includes("고양") || queryLower.includes("일산") || queryLower.includes("부천") || queryLower.includes("안산") || queryLower.includes("화성") || queryLower.includes("동탄") || queryLower.includes("남양주") || queryLower.includes("평택");
+
+  // 2. Gangwon-do (Northeast)
+  const isGangwon = queryLower.includes("강원") || queryLower.includes("강릉") || queryLower.includes("속초") || queryLower.includes("춘천") || queryLower.includes("원주") || queryLower.includes("양양") || queryLower.includes("동해") || queryLower.includes("삼척");
+
+  // 3. Chungcheong-do / Daejeon / Sejong (Center)
+  const isDaejeon = queryLower.includes("대전") || queryLower.includes("유성");
+  const isSejong = queryLower.includes("세종");
+  const isChungcheong = queryLower.includes("충청") || queryLower.includes("충북") || queryLower.includes("충남") || queryLower.includes("천안") || queryLower.includes("청주") || queryLower.includes("아산") || queryLower.includes("충주");
+
+  // 4. Jeolla-do / Gwangju (Southwest)
+  const isGwangju = queryLower.includes("광주") || queryLower.includes("서구 내방로");
+  const isJeolla = queryLower.includes("전라") || queryLower.includes("전북") || queryLower.includes("전남") || queryLower.includes("전주") || queryLower.includes("익산") || queryLower.includes("군산") || queryLower.includes("여수") || queryLower.includes("순천") || queryLower.includes("목포");
+
+  // 5. Gyeongsang-do / Busan / Daegu / Ulsan (Southeast)
+  const isBusan = queryLower.includes("부산") || queryLower.includes("해운대") || queryLower.includes("광안") || queryLower.includes("수영") || queryLower.includes("영도") || queryLower.includes("동래") || queryLower.includes("남포");
+  const isDaegu = queryLower.includes("대구") || queryLower.includes("수성");
+  const isUlsan = queryLower.includes("울산") || queryLower.includes("남구");
+  const isGyeongsang = queryLower.includes("경상") || queryLower.includes("경북") || queryLower.includes("경남") || queryLower.includes("포항") || queryLower.includes("경주") || queryLower.includes("창원") || queryLower.includes("김해") || queryLower.includes("진주") || queryLower.includes("구미") || queryLower.includes("안동");
+
+  // 6. Jeju-do (South Island)
+  const isJeju = queryLower.includes("제주") || queryLower.includes("서귀포") || queryLower.includes("노형") || queryLower.includes("연동") || queryLower.includes("애월");
+
   let x = 42;
   let y = 25;
-  let temp = 26.5;
-  let humidity = 78;
-  let wind = 1.8;
-  let rain = 0.0;
-  let condition: "sunny" | "cloudy" | "rainy" | "windy" | "thunderstorm" = "cloudy";
-  
-  if (queryClean.includes("역삼") || queryClean.includes("강남") || queryClean.includes("서초") || queryClean.includes("서울")) {
-    name = queryClean.includes("역삼") ? "역삼동" : (queryClean.includes("강남") ? "강남구" : (queryClean.includes("서초") ? "서초동" : "서울"));
-    englishName = queryClean.includes("역삼") ? "Yeoksam-dong" : (queryClean.includes("강남") ? "Gangnam-gu" : (queryClean.includes("서초") ? "Seocho-dong" : "Seoul"));
-    fullAddress = queryClean.includes("역삼") 
-      ? "서울특별시 강남구 역삼동 테헤란로 152" 
-      : (queryClean.includes("강남") ? "서울특별시 강남구 학동로 426" : "서울특별시 중구 세종대로 110 (서울시청)");
-    x = 35;
-    y = 22;
-    temp = 28.2;
-    humidity = 82;
-    wind = 2.0;
-    rain = 4.2;
-    condition = "rainy";
-  } else if (queryClean.includes("해운대") || queryClean.includes("부산") || queryClean.includes("광안리")) {
-    name = queryClean.includes("해운대") ? "해운대구" : "부산";
-    englishName = queryClean.includes("해운대") ? "Haeundae" : "Busan";
-    fullAddress = queryClean.includes("해운대") ? "부산광역시 해운대구 우동 해운대해변로 264" : "부산광역시 연제구 중앙대로 1001";
-    x = 64;
-    y = 68;
-    temp = 25.8;
-    humidity = 90;
-    wind = 4.5;
-    rain = 12.0;
-    condition = "rainy";
-  } else if (queryClean.includes("제주") || queryClean.includes("서귀포")) {
-    name = queryClean.includes("서귀포") ? "서귀포시" : "제주";
-    englishName = queryClean.includes("서귀포") ? "Seogwipo" : "Jeju";
-    fullAddress = queryClean.includes("서귀포") ? "제주특별자치도 서귀포시 서귀동 12" : "제주특별자치도 제주시 신대로 64";
-    x = 25;
-    y = 93;
-    temp = 29.0;
-    humidity = 85;
-    wind = 5.2;
-    rain = 1.2;
-    condition = "windy";
-  } else if (queryClean.includes("인천") || queryClean.includes("송도")) {
-    name = queryClean.includes("송도") ? "송도동" : "인천";
-    englishName = queryClean.includes("송도") ? "Songdo-dong" : "Incheon";
-    fullAddress = "인천광역시 연수구 송도동 23-4";
-    x = 26;
-    y = 22;
-    temp = 24.5;
-    humidity = 72;
-    wind = 3.8;
-    rain = 0.0;
-    condition = "cloudy";
-  } else if (queryClean.includes("강릉") || queryClean.includes("속초") || queryClean.includes("강원")) {
-    name = queryClean.includes("속초") ? "속초시" : "강릉";
-    englishName = queryClean.includes("속초") ? "Sokcho" : "Gangneung";
-    fullAddress = "강원특별자치도 강릉시 강릉대로 33";
-    x = 65;
-    y = 18;
-    temp = 23.0;
-    humidity = 65;
-    wind = 3.0;
-    rain = 0.0;
-    condition = "sunny";
-  } else if (queryClean.includes("광주")) {
-    name = "광주";
-    englishName = "Gwangju";
-    fullAddress = "광주광역시 서구 내방로 111";
-    x = 28;
-    y = 67;
-    temp = 27.0;
-    humidity = 79;
-    wind = 1.5;
-    rain = 0.0;
-    condition = "cloudy";
-  } else if (queryClean.includes("대구")) {
-    name = "대구";
-    englishName = "Daegu";
-    fullAddress = "대구광역시 중구 공평로 88";
-    x = 58;
-    y = 53;
-    temp = 32.5;
-    humidity = 55;
-    wind = 1.2;
-    rain = 0.0;
-    condition = "sunny";
-  } else if (queryClean.includes("대전")) {
-    name = "대전";
-    englishName = "Daejeon";
-    fullAddress = "대전광역시 서구 둔산로 100";
-    x = 40;
-    y = 44;
-    temp = 28.0;
-    humidity = 68;
-    wind = 1.7;
-    rain = 0.0;
-    condition = "sunny";
-  } else if (queryClean.includes("세종")) {
-    name = "세종";
-    englishName = "Sejong";
-    fullAddress = "세종특별자치시 한누리대로 2130";
-    x = 37;
-    y = 39;
-    temp = 27.8;
-    humidity = 70;
-    wind = 1.6;
-    rain = 0.0;
-    condition = "sunny";
-  } else if (queryClean.includes("울산")) {
-    name = "울산";
-    englishName = "Ulsan";
-    fullAddress = "울산광역시 남구 중앙로 201";
-    x = 69;
-    y = 58;
-    temp = 26.0;
-    humidity = 82;
-    wind = 4.2;
-    rain = 2.5;
-    condition = "rainy";
+  let fullAddress = "";
+  let englishName = "";
+
+  if (isSeoul) {
+    x = 35 + offsetX;
+    y = 22 + offsetY;
+    const district = queryClean.includes("구") ? parts.find(p => p.endsWith("구")) || "강남구" : "강남구";
+    const dong = name.endsWith("동") ? name : "역삼동";
+    fullAddress = `서울특별시 ${district} ${dong}`;
+    englishName = `${dong.replace("동", "")}-dong, Seoul`;
+  } else if (isIncheon) {
+    x = 26 + offsetX;
+    y = 22 + offsetY;
+    const district = queryClean.includes("구") ? parts.find(p => p.endsWith("구")) || "연수구" : "연수구";
+    const dong = name.endsWith("동") ? name : "송도동";
+    fullAddress = `인천광역시 ${district} ${dong}`;
+    englishName = `${dong.replace("동", "")}-dong, Incheon`;
+  } else if (isGyeonggi) {
+    x = 38 + offsetX;
+    y = 26 + offsetY;
+    const city = queryClean.includes("시") ? parts.find(p => p.endsWith("시")) || "성남시" : "성남시";
+    const district = queryClean.includes("구") ? parts.find(p => p.endsWith("구")) || "분당구" : "분당구";
+    const dong = name.endsWith("동") ? name : "삼평동";
+    fullAddress = `경기도 ${city} ${district} ${dong}`;
+    englishName = `${dong.replace("동", "")}-dong, ${city}`;
+  } else if (isBusan) {
+    x = 64 + offsetX;
+    y = 68 + offsetY;
+    const district = queryClean.includes("구") ? parts.find(p => p.endsWith("구")) || "해운대구" : "해운대구";
+    const dong = name.endsWith("동") ? name : "우동";
+    fullAddress = `부산광역시 ${district} ${dong}`;
+    englishName = `${dong.replace("동", "")}-dong, Busan`;
+  } else if (isDaegu) {
+    x = 58 + offsetX;
+    y = 53 + offsetY;
+    const district = queryClean.includes("구") ? parts.find(p => p.endsWith("구")) || "수성구" : "수성구";
+    const dong = name.endsWith("동") ? name : "범어동";
+    fullAddress = `대구광역시 ${district} ${dong}`;
+    englishName = `${dong.replace("동", "")}-dong, Daegu`;
+  } else if (isUlsan) {
+    x = 69 + offsetX;
+    y = 58 + offsetY;
+    const district = queryClean.includes("구") ? parts.find(p => p.endsWith("구")) || "남구" : "남구";
+    const dong = name.endsWith("동") ? name : "삼산동";
+    fullAddress = `울산광역시 ${district} ${dong}`;
+    englishName = `${dong.replace("동", "")}-dong, Ulsan`;
+  } else if (isDaejeon) {
+    x = 40 + offsetX;
+    y = 44 + offsetY;
+    const district = queryClean.includes("구") ? parts.find(p => p.endsWith("구")) || "유성구" : "유성구";
+    const dong = name.endsWith("동") ? name : "궁동";
+    fullAddress = `대전광역시 ${district} ${dong}`;
+    englishName = `${dong.replace("동", "")}-dong, Daejeon`;
+  } else if (isSejong) {
+    x = 37 + offsetX;
+    y = 39 + offsetY;
+    const dong = name.endsWith("동") ? name : "보람동";
+    fullAddress = `세종특별자치시 ${dong}`;
+    englishName = `${dong.replace("동", "")}-dong, Sejong`;
+  } else if (isGangwon) {
+    x = 60 + offsetX;
+    y = 18 + offsetY;
+    const city = queryClean.includes("시") ? parts.find(p => p.endsWith("시")) || "강릉시" : "강릉시";
+    const dong = name.endsWith("동") ? name : "포남동";
+    fullAddress = `강원특별자치도 ${city} ${dong}`;
+    englishName = `${dong.replace("동", "")}-dong, ${city}`;
+  } else if (isChungcheong) {
+    x = 42 + offsetX;
+    y = 41 + offsetY;
+    const province = queryLower.includes("충북") ? "충청북도" : "충청남도";
+    const city = queryClean.includes("시") ? parts.find(p => p.endsWith("시")) || "천안시" : "천안시";
+    const dong = name.endsWith("동") ? name : "신부동";
+    fullAddress = `${province} ${city} ${dong}`;
+    englishName = `${dong.replace("동", "")}-dong, ${city}`;
+  } else if (isGwangju) {
+    x = 28 + offsetX;
+    y = 67 + offsetY;
+    const district = queryClean.includes("구") ? parts.find(p => p.endsWith("구")) || "북구" : "북구";
+    const dong = name.endsWith("동") ? name : "용봉동";
+    fullAddress = `광주광역시 ${district} ${dong}`;
+    englishName = `${dong.replace("동", "")}-dong, Gwangju`;
+  } else if (isJeolla) {
+    x = 26 + offsetX;
+    y = 64 + offsetY;
+    const province = queryLower.includes("전북") ? "전라북도" : "전라남도";
+    const city = queryClean.includes("시") ? parts.find(p => p.endsWith("시")) || "전주시" : "전주시";
+    const dong = name.endsWith("동") ? name : "효자동";
+    fullAddress = `${province} ${city} ${dong}`;
+    englishName = `${dong.replace("동", "")}-dong, ${city}`;
+  } else if (isGyeongsang) {
+    x = 64 + offsetX;
+    y = 52 + offsetY;
+    const province = queryLower.includes("경북") ? "경상북도" : "경상남도";
+    const city = queryClean.includes("시") ? parts.find(p => p.endsWith("시")) || "포항시" : "창원시";
+    const dong = name.endsWith("동") ? name : "상남동";
+    fullAddress = `${province} ${city} ${dong}`;
+    englishName = `${dong.replace("동", "")}-dong, ${city}`;
+  } else if (isJeju) {
+    x = 25 + offsetX;
+    y = 93 + offsetY;
+    const city = queryClean.includes("서귀포") ? "서귀포시" : "제주시";
+    const dong = name.endsWith("동") ? name : "노형동";
+    fullAddress = `제주특별자치도 ${city} ${dong}`;
+    englishName = `${dong.replace("동", "")}-dong, Jeju`;
   } else {
-    const charCodeSum = Array.from(name).reduce((sum, char) => sum + char.charCodeAt(0), 0);
     x = 25 + (charCodeSum % 40);
     y = 15 + ((charCodeSum >> 2) % 65);
-    temp = 22.0 + parseFloat(((charCodeSum % 110) / 10).toFixed(1));
-    humidity = 50 + (charCodeSum % 46);
-    wind = parseFloat((0.5 + (charCodeSum % 8) / 1.5).toFixed(1));
-    rain = (charCodeSum % 5 === 0) ? parseFloat(((charCodeSum % 15) + 0.5).toFixed(1)) : 0.0;
-    condition = rain > 10.0 ? "thunderstorm" : (rain > 0 ? "rainy" : (humidity > 80 ? "cloudy" : "sunny"));
-    
     let province = "경기도";
     if (x > 50 && y < 35) province = "강원특별자치도";
     else if (x > 50 && y >= 35 && y < 60) province = "경상북도";
@@ -177,13 +196,22 @@ function getFallbackWeatherData(query: string): any {
     else if (x <= 50 && y >= 35 && y < 50) province = "충청남도";
     else if (x <= 50 && y >= 50 && y < 70) province = "전라북도";
     else if (x <= 50 && y >= 70) province = "전라남도";
-    
     fullAddress = `대한민국 ${province} ${name}`;
     englishName = name.replace(/[^a-zA-Z]/g, "") || "Localized Area";
     if (!englishName) {
       englishName = `Region-${charCodeSum % 1000}`;
     }
   }
+
+  // Clamping coordinates
+  x = Math.max(5, Math.min(95, x));
+  y = Math.max(5, Math.min(105, y));
+
+  const temp = 22.0 + parseFloat(((charCodeSum % 110) / 10).toFixed(1));
+  const humidity = 50 + (charCodeSum % 46);
+  const wind = parseFloat((0.5 + (charCodeSum % 8) / 1.5).toFixed(1));
+  const rain = (charCodeSum % 5 === 0) ? parseFloat(((charCodeSum % 15) + 0.5).toFixed(1)) : 0.0;
+  const condition = rain > 10.0 ? "thunderstorm" : (rain > 0 ? "rainy" : (humidity > 80 ? "cloudy" : "sunny"));
 
   const radarForecast = [
     rain,
@@ -199,8 +227,8 @@ function getFallbackWeatherData(query: string): any {
     name,
     englishName,
     fullAddress,
-    x,
-    y,
+    x: parseFloat(x.toFixed(1)),
+    y: parseFloat(y.toFixed(1)),
     temp,
     humidity,
     wind,
@@ -296,16 +324,46 @@ app.post("/api/weather/chat", async (req, res) => {
 
   const getFallbackChatReply = () => {
     const userMsg = messages[messages.length - 1]?.content || "";
-    let reply = "안녕하세요! 날씨와 기후 전문 비서 '클라이밋 버디'입니다. 현재 인공지능 실시간 통신 모드가 시뮬레이션 상태로 원활히 연결되어 작동 중입니다. 궁금한 점이 있으시다면 언제든지 물어보세요!";
-    if (userMsg.includes("비") || userMsg.includes("우산") || userMsg.includes("장화") || userMsg.includes("비오") || userMsg.includes("강수")) {
-      reply = `현재 선택된 ${currentWeather?.name || "지역"}의 실시간 강수량은 ${currentWeather?.rain || 0}mm/h입니다. 비가 오거나 강수가 예측되는 상황에서는 외출 시 발목까지 감싸주는 튼튼한 장화(Rainboots)나 미끄럼 방지 슈즈를 챙기시고, 가벼운 휴대용 우산을 휴대하는 것을 추천해 드려요!`;
-    } else if (userMsg.includes("더워") || userMsg.includes("더위") || userMsg.includes("여름") || userMsg.includes("온도") || userMsg.includes("기온")) {
-      reply = `최근 기후 변화의 영향으로 우리나라의 평균 여름 기온이 상승하고 있습니다. 오늘 ${currentWeather?.name || "선택된 지역"}의 현재 기온은 ${currentWeather?.temp || 27}°C인데요, 불쾌지수 역시 높아질 수 있으므로 충분히 수분을 섭취해 주시고 통풍이 잘 되는 린넨이나 기능성 의류를 착용하시는 걸 강추합니다!`;
-    } else if (userMsg.includes("안녕") || userMsg.includes("하이") || userMsg.includes("반갑")) {
-      reply = `반가워요! 저는 기후 및 날씨 코디를 제안하는 똑똑한 비서 '클라이밋 버디'입니다. ☀️ 현재 선택되어 있는 ${currentWeather?.name || "서울"} 지역의 실시간 기상 상태와 초단기 강수예측 수치를 기반으로 맞춤 코디 및 실생활 팁을 친절하게 전해드리고 있으니 언제든 편하게 물어보세요!`;
-    } else if (userMsg.includes("검색") || userMsg.includes("지역") || userMsg.includes("찾아")) {
-      reply = "왼쪽의 돋보기 아이콘이 그려진 검색바에 원하시는 지명(예: 역삼동, 제주, 해운대 등)을 입력하시면, 즉시 그 지역의 정밀한 좌표와 함께 초단기 강수 시뮬레이션 및 맞춤형 라이프스타일 팁이 새롭게 계산됩니다. 직접 한 번 검색해 보세요!";
+    const name = currentWeather?.name || "선택된 지역";
+    const temp = currentWeather?.temp || 26;
+    const humidity = currentWeather?.humidity || 65;
+    const wind = currentWeather?.wind || 1.5;
+    const rain = currentWeather?.rain || 0;
+    const condition = currentWeather?.condition || "맑음";
+
+    let reply = `선택하신 ${name} 지역은 현재 기온 ${temp}°C, 습도 ${humidity}%, 풍속 ${wind}m/s, 강수량 ${rain}mm/h로 날씨가 ${condition} 상태입니다. 혹시 오늘 날씨에 따른 옷차림 추천이나 기후 변화 상식, 외출 가이드에 대해 더 궁금한 점이 있으신가요? 편하게 물어보시면 상세히 답변해 드릴게요!`;
+
+    const query = userMsg.toLowerCase();
+    if (query.includes("비") || query.includes("우산") || query.includes("장화") || query.includes("비오") || query.includes("강수")) {
+      if (rain > 0) {
+        reply = `현재 선택된 ${name} 지역은 시간당 ${rain}mm의 비가 실시간으로 내리고 있습니다. ☔ 외출하실 때 튼튼한 우산과 발목을 감싸주는 장화(Rainboots), 또는 미끄럼 방지 신발을 꼭 착용해 안전에 유의해 주세요. 실내 제습도 잊지 마세요!`;
+      } else {
+        reply = `현재 선택된 ${name} 지역은 다행히 비가 내리고 있지 않고 보송한 상태입니다. ☀️ 다만 최근 기후 변화로 인해 예고 없는 국지성 소나기가 잦게 발생할 수 있으니 가벼운 접이식 우산을 가방에 늘 휴대하고 다니시는 것을 추천드립니다!`;
+      }
+    } else if (query.includes("더워") || query.includes("더위") || query.includes("여름") || query.includes("온도") || query.includes("기온") || query.includes("날씨")) {
+      if (temp >= 28) {
+        reply = `현재 ${name}의 기온은 ${temp}°C로 매우 무더운 여름 날씨를 보이고 있습니다. 🔥 열사병과 탈수 예방을 위해 충분한 수분을 정기적으로 섭취해 주시고, 땀 흡수와 통풍이 잘 되는 가벼운 린넨이나 기능성 의류를 착용해 체온을 조절해 주세요.`;
+      } else if (temp >= 20) {
+        reply = `현재 ${name}의 기온은 ${temp}°C로 바깥 활동을 하기에 정말 완벽한 선선하고 쾌적한 가을/봄 같은 날씨입니다! 🍃 가벼운 티셔츠에 얇은 가디건이나 자켓을 매치한 캐주얼한 의류가 체온 유지와 스타일에 둘 다 좋겠습니다.`;
+      } else {
+        reply = `현재 ${name}의 기온은 ${temp}°C로 다소 쌀쌀하게 느껴지는 날씨입니다. 🧥 감기에 걸리지 않도록 가디건이나 집업 바람막이, 가벼운 외투를 걸쳐 체온을 따뜻하게 유지하시는 것을 강력히 권장해 드려요!`;
+      }
+    } else if (query.includes("옷") || query.includes("추천") || query.includes("코디") || query.includes("패션") || query.includes("차림")) {
+      if (rain > 0) {
+        reply = `현재 비가 오고 있기 때문에 지면이 미끄럽고 옷이 젖기 쉽습니다. 🌧️ 하의는 오염을 방지할 수 있는 어두운 톤의 짧은 기장의 바지나 스커트를 입으시고, 가죽 소재보다는 방수가 되는 윈드브레이커(바람막이)나 장화(레인부츠) 코디를 추천드립니다!`;
+      } else if (temp >= 28) {
+        reply = `오늘 기온은 ${temp}°C로 무덥기 때문에 통풍성이 훌륭한 반팔 티셔츠, 린넨 셔츠, 숏팬츠를 메인으로 한 시원한 원마일 웨어 코디를 추천합니다. 실내 냉방이 강할 수 있으니 가방에 얇은 셔츠를 준비해 보세요! ☀️`;
+      } else {
+        reply = `오늘 기온이 ${temp}°C로 선선하므로, 얇은 긴팔 셔츠에 데님 팬츠, 또는 캐주얼 아우터(트렌치 코트, 가벼운 가디건, 블루종)를 활용해 레이어드 룩을 완성해 보시는 걸 강추드려요! 🧥`;
+      }
+    } else if (query.includes("엘니뇨") || query.includes("라니냐") || query.includes("기후변화") || query.includes("탄소") || query.includes("온난화")) {
+      reply = `최근 전 지구적인 온실가스 배출량의 증가와 기후 온난화로 인해 엘니뇨(El Niño)와 라니냐 현상의 변동성이 훨씬 불규칙하고 강해졌습니다. 🌍 이는 한반도에도 전례 없는 집중호우, 태풍 경로의 교란, 극단적 폭염과 한파를 몰고 오고 있죠. 우리 모두 일상 속에서 종이컵 대신 텀블러 쓰기, 대중교통 이용, 쓰지 않는 전원 플러그 뽑기 같은 생활 밀착형 친환경 활동으로 탄소 배출을 줄이는 위대한 여정에 동참해야 합니다!`;
+    } else if (query.includes("안녕") || query.includes("하이") || query.includes("반갑") || query.includes("누구")) {
+      reply = `반가워요! 저는 기후 변화 시대의 든든한 날씨 길잡이 AI 비서 '클라이밋 버디(Climate Buddy)'입니다. 🌤️ 현재 선택되어 있는 ${name} 지역의 실시간 기상 상태나 맞춤형 패션 코디, 또는 다양한 기후 변화 상식에 대해 무엇이든 편하게 대화 나눠보세요!`;
+    } else if (query.includes("검색") || query.includes("지역") || query.includes("동")) {
+      reply = `왼쪽 검색바에 '망미동', '여의도', '해운대구 우동' 등 세부 '동'단위 주소나 키워드를 검색해 보세요! 🗺️ 즉시 해당 지역의 정밀한 좌표가 계산되어 지도 위에 시각화되며, 초단기 레이더 강수예측 수치와 맞춤 팁이 새롭게 분석되어 로딩됩니다!`;
     }
+
     return { text: reply };
   };
 
