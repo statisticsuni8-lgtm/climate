@@ -42,6 +42,12 @@ export default function App() {
   const [forecastStep, setForecastStep] = useState<number>(0);
   const [isPlayingRadar, setIsPlayingRadar] = useState<boolean>(true);
 
+  // Custom Searched Regions & Search Inputs
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [isSearching, setIsSearching] = useState<boolean>(false);
+  const [customRegions, setCustomRegions] = useState<WeatherData[]>([]);
+  const [searchError, setSearchError] = useState<string | null>(null);
+
   // AI Commentary States
   const [aiCommentary, setAiCommentary] = useState<{
     commentary: string;
@@ -114,6 +120,68 @@ export default function App() {
       console.error("Error fetching commentary:", error);
     } finally {
       setIsLoadingCommentary(false);
+    }
+  };
+
+  // API Call: Search custom location/address
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) return;
+    setIsSearching(true);
+    setSearchError(null);
+    try {
+      // First check if it matches a local region in regionsData
+      const queryLower = searchQuery.trim().toLowerCase();
+      const localMatch = regionsData.find(
+        (reg) =>
+          reg.name.toLowerCase().includes(queryLower) ||
+          reg.englishName.toLowerCase().includes(queryLower)
+      );
+
+      if (localMatch) {
+        setSelectedRegion(localMatch);
+        setSearchQuery("");
+        setIsSearching(false);
+        return;
+      }
+
+      // Check existing custom regions
+      const existingCustomMatch = customRegions.find(
+        (reg) =>
+          reg.name.toLowerCase().includes(queryLower) ||
+          reg.englishName.toLowerCase().includes(queryLower) ||
+          (reg.fullAddress && reg.fullAddress.toLowerCase().includes(queryLower))
+      );
+
+      if (existingCustomMatch) {
+        setSelectedRegion(existingCustomMatch);
+        setSearchQuery("");
+        setIsSearching(false);
+        return;
+      }
+
+      const response = await fetch("/api/weather/search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: searchQuery.trim() })
+      });
+
+      if (!response.ok) {
+        throw new Error("위치를 찾지 못했습니다.");
+      }
+
+      const data = await response.json();
+      if (data && data.name && data.x && data.y) {
+        setCustomRegions((prev) => [...prev, data]);
+        setSelectedRegion(data);
+        setSearchQuery("");
+      } else {
+        setSearchError("검색한 지역의 정보를 찾지 못했습니다.");
+      }
+    } catch (error: any) {
+      console.error("Search error:", error);
+      setSearchError("위치를 검색하는 동안 오류가 발생했습니다. 정확한 지명이나 도로명을 입력해 보세요.");
+    } finally {
+      setIsSearching(false);
     }
   };
 
@@ -362,6 +430,53 @@ export default function App() {
                 </div>
               </div>
 
+              {/* Region/Address Search Input */}
+              <div className="mb-3.5 z-10">
+                <div className="flex gap-1.5">
+                  <div className="relative flex-1">
+                    <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                      <MapPin className="w-3.5 h-3.5 text-slate-500" />
+                    </span>
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleSearch();
+                      }}
+                      placeholder="지역명, 동, 구 또는 상세 주소 검색..."
+                      className="w-full bg-slate-950/80 border border-slate-800 rounded-xl py-1.5 pl-8.5 pr-8 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500/50 focus:ring-1 focus:ring-sky-500/20 transition-all"
+                    />
+                    {searchQuery && (
+                      <button
+                        onClick={() => setSearchQuery("")}
+                        className="absolute inset-y-0 right-0 flex items-center pr-2.5 text-slate-500 hover:text-white"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                  <button
+                    onClick={handleSearch}
+                    disabled={isSearching || !searchQuery.trim()}
+                    className="bg-sky-500 hover:bg-sky-400 disabled:bg-slate-800 disabled:text-slate-500 text-slate-950 font-bold px-3 py-1.5 rounded-xl text-xs transition-colors flex items-center gap-1 shrink-0 cursor-pointer disabled:cursor-not-allowed"
+                  >
+                    {isSearching ? (
+                      <RefreshCw className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <Sparkles className="w-3 h-3" />
+                    )}
+                    <span>검색</span>
+                  </button>
+                </div>
+                {searchError && (
+                  <p className="text-[10px] text-rose-400 mt-1 pl-1 flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3 shrink-0" />
+                    {searchError}
+                  </p>
+                )}
+              </div>
+
               {/* High Tech Interactive Map View Area */}
               <div className="relative flex-1 bg-slate-950/40 rounded-xl border border-slate-800/40 overflow-hidden flex items-center justify-center">
                 
@@ -447,6 +562,38 @@ export default function App() {
                             </g>
                           );
                         })}
+                        {customRegions.map((reg) => {
+                          const stepsPrecipitation = reg.radarForecast[forecastStep];
+                          if (stepsPrecipitation === 0) return null;
+
+                          // Pulse animation size based on rain intensity
+                          const pulseRadius = 5 + (stepsPrecipitation * 0.8);
+                          const color = getPrecipitationColor(stepsPrecipitation);
+
+                          return (
+                            <g key={`radar-custom-${reg.id}`}>
+                              {/* Glowing cell overlay */}
+                              <circle
+                                cx={reg.x}
+                                cy={reg.y}
+                                r={pulseRadius}
+                                fill={color}
+                                className="transition-all duration-1000 ease-in-out"
+                                opacity="0.35"
+                              />
+                              <circle
+                                cx={reg.x}
+                                cy={reg.y}
+                                r={pulseRadius * 0.6}
+                                fill="none"
+                                stroke={color}
+                                strokeWidth="0.5"
+                                className="animate-ping"
+                                style={{ animationDuration: `${3 - Math.min(2.5, stepsPrecipitation * 0.1)}s` }}
+                              />
+                            </g>
+                          );
+                        })}
                       </g>
                     )}
 
@@ -497,6 +644,59 @@ export default function App() {
                             className="pointer-events-none select-none transition-all duration-300"
                           >
                             {reg.name}
+                            {isSelected && ` (${reg.temp}°)`}
+                          </text>
+                        </g>
+                      );
+                    })}
+
+                    {/* Custom Searched Pins */}
+                    {customRegions.map((reg) => {
+                      const isSelected = selectedRegion.id === reg.id;
+                      const hasRain = reg.rain > 0;
+                      
+                      return (
+                        <g
+                          key={reg.id}
+                          className="cursor-pointer group"
+                          onClick={() => setSelectedRegion(reg)}
+                        >
+                          {/* Outer glowing pulsing aura for selected region */}
+                          {isSelected && (
+                            <circle
+                              cx={reg.x}
+                              cy={reg.y}
+                              r="4.5"
+                              fill="none"
+                              stroke="#c084fc"
+                              strokeWidth="0.75"
+                              className="animate-pulse"
+                            />
+                          )}
+
+                          {/* Pin dot */}
+                          <circle
+                            cx={reg.x}
+                            cy={reg.y}
+                            r={isSelected ? "2.5" : "1.8"}
+                            fill={isSelected ? "#e9d5ff" : hasRain ? "#c084fc" : "#a855f7"}
+                            stroke="rgba(15, 23, 42, 0.9)"
+                            strokeWidth="0.5"
+                            className="transition-all duration-300 group-hover:scale-125 group-hover:fill-purple-300"
+                          />
+
+                          {/* Hover text next to nodes */}
+                          <text
+                            x={reg.x + (reg.x > 60 ? -3 : 3)}
+                            y={reg.y + 1}
+                            textAnchor={reg.x > 60 ? "end" : "start"}
+                            fill={isSelected ? "#f3e8ff" : "#d8b4fe"}
+                            fontSize="3"
+                            fontFamily="sans-serif"
+                            fontWeight={isSelected ? "bold" : "normal"}
+                            className="pointer-events-none select-none transition-all duration-300"
+                          >
+                            📍 {reg.name}
                             {isSelected && ` (${reg.temp}°)`}
                           </text>
                         </g>
