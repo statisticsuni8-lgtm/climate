@@ -453,12 +453,31 @@ app.post("/api/weather/commentary", async (req, res) => {
     if (di >= 80) feel = "매우 후텁지근해요";
     else if (di >= 75) feel = "조금 끈적여요";
     else if (temp < 15) feel = "쌀쌀하고 선선해요";
-    
+
+    // 날씨가 안 좋으면(비/강풍/폭염/한파) 실내를, 좋으면 야외를 추천
+    const badForOutdoor = isRainy || wind >= 7 || temp >= 33 || temp <= 3;
+    let outdoorPlaces: string[];
+    if (temp >= 28) {
+      outdoorPlaces = ["계곡·워터파크", "그늘진 숲길 산책로", "야외 수영장", "빙수 맛집 테라스"];
+    } else if (temp <= 8) {
+      outdoorPlaces = ["근교 스키장", "온천·족욕 명소", "실내외 겸용 산책로", "겨울 야경 명소"];
+    } else {
+      outdoorPlaces = ["동네 공원 산책로", "한강공원 피크닉", "루프탑 카페", "근교 등산로"];
+    }
+    const indoorPlaces = isRainy
+      ? ["실내 워터파크", "대형 쇼핑몰", "보드게임 카페", "실내 스크린골프"]
+      : ["대형 서점·북카페", "실내 클라이밍짐", "영화관", "미술관·전시회"];
+
     return {
       commentary: `${region} 지역은 현재 기온 ${temp}°C, 습도 ${humidity}%로 공기의 흐름이 조화를 이루고 있습니다. ${isRainy ? "내리는 빗방울과 함께 시원한 바람이 체감 온도를 조절해 주네요." : "화창하고 선선한 기상 상태를 만끽해 보세요."}`,
       clothingRecommendation: isRainy ? "비가 내려 지면이 젖었으니 튼튼한 장화(Rainboots)나 미끄럼 방지 슈즈를 추천드려요." : "쾌적하고 얇은 자켓이나 가디건을 매치해 체온을 일정하게 유지해보세요.",
       lifestyleTip: isRainy ? "실내 환기는 잠시 미루고 제습기나 에어컨 제습 모드를 가동하는 것이 집안을 보송하게 유지하는 꿀팁입니다." : "실외 환기를 하기 딱 좋은 타이밍입니다! 30분간 환기를 시켜 실내 공기를 정화해 보세요.",
-      sensoryFeel: feel
+      sensoryFeel: feel,
+      activityRecommendation: {
+        recommended: badForOutdoor ? "indoor" : "outdoor",
+        outdoorPlaces,
+        indoorPlaces,
+      },
     };
   };
 
@@ -486,13 +505,19 @@ Please compute or discuss:
 2. Wind Chill or Cooling (체감 온도 및 바람의 영향).
 3. Recommendation for outfits (e.g. "장화(Rainboots) 추천", "반팔과 선글라스", "가벼운 겉옷/바람막이" etc. based on rain and wind).
 4. A useful daily climate tip (laundry, car wash, ventilation, outdoor activities).
+5. Whether today favors outdoor or indoor activities (rain, strong wind >=7m/s, or extreme temp (>=33°C or <=3°C) should favor indoor), and 4 concrete Korean place-type suggestions for each of outdoor and indoor (not real specific business names, just place categories like "한강공원 피크닉", "실내 클라이밍짐").
 
 You must respond STRICTLY with a valid JSON object matching this structure:
 {
   "commentary": "A friendly, cohesive, and witty commentary (2-3 sentences) in Korean analyzing how this weather feels physically.",
   "clothingRecommendation": "Specific fashion advice (1-2 sentences) in Korean (e.g. recommending rainboots, linen shirts, or thin layers).",
   "lifestyleTip": "A practical daily tip in Korean regarding laundry, ventilation, outdoor sports, or health.",
-  "sensoryFeel": "A very short catchphrase describing the weather feeling (e.g. '습하고 끈적여요', '선선하고 상쾌해요', '살이 타는 듯한 더위', '장마비 철벽 방어 필요!')"
+  "sensoryFeel": "A very short catchphrase describing the weather feeling (e.g. '습하고 끈적여요', '선선하고 상쾌해요', '살이 타는 듯한 더위', '장마비 철벽 방어 필요!')",
+  "activityRecommendation": {
+    "recommended": "outdoor" | "indoor",
+    "outdoorPlaces": ["4 short Korean place-type suggestions suited to today's weather"],
+    "indoorPlaces": ["4 short Korean place-type suggestions suited to today's weather"]
+  }
 }
 Do not include any markdown backticks (\`\`\`json) in your response. Just return the raw JSON string.
 `;
@@ -517,7 +542,12 @@ Do not include any markdown backticks (\`\`\`json) in your response. Just return
       commentary: "날씨 정보를 분석하는 도중 오류가 발생했습니다. 하지만 상쾌한 하루를 보내시길 바랍니다!",
       clothingRecommendation: "날씨에 맞는 편안한 옷차림을 권장합니다.",
       lifestyleTip: "급격한 기후 변화에 대비해 건강 관리에 유의하세요.",
-      sensoryFeel: "정보 준비 중"
+      sensoryFeel: "정보 준비 중",
+      activityRecommendation: {
+        recommended: "indoor",
+        outdoorPlaces: ["동네 공원 산책로", "한강공원 피크닉", "루프탑 카페", "근교 등산로"],
+        indoorPlaces: ["대형 서점·북카페", "실내 클라이밍짐", "영화관", "미술관·전시회"],
+      },
     });
   }
 });

@@ -28,7 +28,9 @@ import {
   ThumbsUp,
   Droplets,
   Smartphone,
-  Monitor
+  Monitor,
+  Home,
+  Trees
 } from "lucide-react";
 import {
   regionsData,
@@ -163,6 +165,11 @@ export default function App() {
     clothingRecommendation: string;
     lifestyleTip: string;
     sensoryFeel: string;
+    activityRecommendation?: {
+      recommended: "outdoor" | "indoor";
+      outdoorPlaces: string[];
+      indoorPlaces: string[];
+    };
   } | null>(null);
   const [isLoadingCommentary, setIsLoadingCommentary] = useState<boolean>(false);
 
@@ -1755,6 +1762,80 @@ export default function App() {
                     <span>수치예보 시뮬레이션 기반</span>
                     <span className="text-sky-500 font-semibold">초단기 예측 모델 적용됨</span>
                   </div>
+                </div>
+
+                {/* 5. Large Bento Box: 오늘 가기 좋은 장소 추천 (야외/실내) */}
+                <div id="place_recommendation_card" className="md:col-span-2 bg-white border border-slate-200 rounded-2xl p-5 relative shadow-sm">
+                  <h3 className="text-sm font-semibold text-slate-800 mb-1 flex items-center gap-1.5">
+                    <Compass className="w-4 h-4 text-sky-600" />
+                    오늘 날씨에 어울리는 장소 추천
+                  </h3>
+                  <p className="text-[11px] text-slate-400 mb-3.5">
+                    비·강풍·폭염·한파일 땐 실내를, 쾌적한 날엔 야외를 우선 추천해요.
+                  </p>
+
+                  {isLoadingCommentary ? (
+                    <div className="flex items-center justify-center py-10">
+                      <div className="w-6 h-6 border-2 border-sky-500 border-t-transparent rounded-full animate-spin" />
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {(
+                        [
+                          {
+                            type: "outdoor" as const,
+                            label: "야외 활동",
+                            icon: Trees,
+                            places:
+                              aiCommentary?.activityRecommendation?.outdoorPlaces ??
+                              ["동네 공원 산책로", "한강공원 피크닉", "루프탑 카페", "근교 등산로"],
+                            recommendedCard: "rounded-xl border p-3.5 border-emerald-300 bg-emerald-50/60",
+                            recommendedIcon: "w-4 h-4 text-emerald-600",
+                            recommendedBadge: "text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500 text-white",
+                            recommendedDot: "w-1 h-1 rounded-full bg-emerald-500",
+                          },
+                          {
+                            type: "indoor" as const,
+                            label: "실내 활동",
+                            icon: Home,
+                            places:
+                              aiCommentary?.activityRecommendation?.indoorPlaces ??
+                              ["대형 서점·북카페", "실내 클라이밍짐", "영화관", "미술관·전시회"],
+                            recommendedCard: "rounded-xl border p-3.5 border-indigo-300 bg-indigo-50/60",
+                            recommendedIcon: "w-4 h-4 text-indigo-600",
+                            recommendedBadge: "text-[9px] font-bold px-1.5 py-0.5 rounded bg-indigo-500 text-white",
+                            recommendedDot: "w-1 h-1 rounded-full bg-indigo-500",
+                          },
+                        ] as const
+                      ).map((group) => {
+                        const isRecommended =
+                          (aiCommentary?.activityRecommendation?.recommended ?? "outdoor") === group.type;
+                        const Icon = group.icon;
+                        return (
+                          <div
+                            key={group.type}
+                            className={isRecommended ? group.recommendedCard : "rounded-xl border p-3.5 border-slate-100 bg-slate-50"}
+                          >
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
+                                <Icon className={isRecommended ? group.recommendedIcon : "w-4 h-4 text-slate-400"} />
+                                {group.label}
+                              </div>
+                              {isRecommended && <span className={group.recommendedBadge}>오늘 추천</span>}
+                            </div>
+                            <ul className="space-y-1.5">
+                              {group.places.map((place, i) => (
+                                <li key={i} className="flex items-center gap-1.5 text-xs text-slate-600">
+                                  <span className={isRecommended ? group.recommendedDot : "w-1 h-1 rounded-full bg-slate-300"} />
+                                  {place}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
 
               </div>
