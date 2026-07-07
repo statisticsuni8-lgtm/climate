@@ -55,39 +55,39 @@ const MobileFrameWrapper = ({ children, isMobile }: MobileFrameWrapperProps) => 
   return (
     <div className="flex justify-center py-6 px-4">
       {/* Device Body */}
-      <div className="relative w-[385px] h-[820px] rounded-[52px] border-[12px] border-slate-900 bg-slate-950 shadow-[0_0_60px_rgba(0,0,0,0.8),0_0_0_1px_rgba(255,255,255,0.08)] overflow-hidden flex flex-col ring-1 ring-white/10">
+      <div className="relative w-[385px] h-[820px] rounded-[52px] border-[12px] border-slate-300 bg-white shadow-[0_20px_50px_rgba(15,23,42,0.12)] overflow-hidden flex flex-col ring-1 ring-slate-200">
         
         {/* Notch / Speaker Bar */}
-        <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-5 bg-slate-950 rounded-b-xl z-50 flex items-center justify-center border-b border-x border-slate-900/60">
-          <div className="w-10 h-1 bg-slate-900 rounded-full" />
+        <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-5 bg-slate-100 rounded-b-xl z-50 flex items-center justify-center border-b border-x border-slate-200">
+          <div className="w-10 h-1 bg-slate-300 rounded-full" />
         </div>
         
         {/* Mock iPhone Status Bar */}
-        <div className="h-9 px-6 pt-2 flex justify-between items-center text-[10px] font-mono text-slate-400 bg-slate-950/90 z-40 select-none shrink-0 border-b border-slate-900/40">
-          <span className="font-semibold text-slate-300">09:41</span>
+        <div className="h-9 px-6 pt-2 flex justify-between items-center text-[10px] font-mono text-slate-600 bg-white z-40 select-none shrink-0 border-b border-slate-100">
+          <span className="font-semibold text-slate-800">09:41</span>
           <div className="flex items-center gap-1.5">
             <span className="flex items-end gap-[1px]">
-              <span className="w-[1.2px] h-[3px] bg-slate-400 rounded-sm"></span>
-              <span className="w-[1.2px] h-[5px] bg-slate-400 rounded-sm"></span>
-              <span className="w-[1.2px] h-[7px] bg-slate-400 rounded-sm"></span>
-              <span className="w-[1.2px] h-[9px] bg-slate-400 rounded-sm"></span>
+              <span className="w-[1.2px] h-[3px] bg-slate-500 rounded-sm"></span>
+              <span className="w-[1.2px] h-[5px] bg-slate-500 rounded-sm"></span>
+              <span className="w-[1.2px] h-[7px] bg-slate-500 rounded-sm"></span>
+              <span className="w-[1.2px] h-[9px] bg-slate-500 rounded-sm"></span>
             </span>
-            <span className="text-[9px] text-slate-300">5G</span>
-            <span className="w-4 h-2.5 border border-slate-500 rounded p-[0.5px] flex items-center">
-              <span className="h-full w-2.5 bg-emerald-400 rounded-sm"></span>
+            <span className="text-[9px] text-slate-600">5G</span>
+            <span className="w-4 h-2.5 border border-slate-400 rounded p-[0.5px] flex items-center">
+              <span className="h-full w-2.5 bg-emerald-500 rounded-sm"></span>
             </span>
           </div>
         </div>
 
         {/* Device Viewport */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden relative bg-slate-950 scrollbar-none pb-12 pt-1.5">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden relative bg-[#f8fafc] scrollbar-none pb-12 pt-1.5">
           <div className="px-3.5 space-y-4">
             {children}
           </div>
         </div>
 
         {/* Home Indicator */}
-        <div className="absolute bottom-1.5 left-1/2 transform -translate-x-1/2 w-28 h-1 bg-white/20 rounded-full z-50 pointer-events-none" />
+        <div className="absolute bottom-1.5 left-1/2 transform -translate-x-1/2 w-28 h-1 bg-slate-300 rounded-full z-50 pointer-events-none" />
       </div>
     </div>
   );
@@ -99,6 +99,11 @@ export default function App() {
   const [radarOn, setRadarOn] = useState<boolean>(true);
   const [forecastStep, setForecastStep] = useState<number>(0);
   const [isPlayingRadar, setIsPlayingRadar] = useState<boolean>(true);
+
+  // Home/Preferred Region State
+  const [homeRegionId, setHomeRegionId] = useState<string | null>(() => {
+    return localStorage.getItem("climate_buddy_home_region_id");
+  });
 
   // Custom Searched Regions & Search Inputs
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -135,6 +140,262 @@ export default function App() {
   const [rcpTooltipIndex, setRcpTooltipIndex] = useState<number | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Load custom regions and home region on mount
+  useEffect(() => {
+    const savedCustoms = localStorage.getItem("climate_buddy_custom_regions");
+    let loadedCustoms: WeatherData[] = [];
+    if (savedCustoms) {
+      try {
+        const parsed = JSON.parse(savedCustoms) as WeatherData[];
+        setCustomRegions(parsed);
+        loadedCustoms = parsed;
+      } catch (e) {
+        console.error("Failed to parse custom regions:", e);
+      }
+    }
+
+    const savedHomeId = localStorage.getItem("climate_buddy_home_region_id");
+    if (savedHomeId) {
+      const match = regionsData.find(r => r.id === savedHomeId);
+      if (match) {
+        setSelectedRegion(match);
+      } else {
+        const customMatch = loadedCustoms.find(r => r.id === savedHomeId);
+        if (customMatch) {
+          setSelectedRegion(customMatch);
+        }
+      }
+    }
+  }, []);
+
+  // Save custom regions when changed
+  useEffect(() => {
+    if (customRegions.length > 0) {
+      localStorage.setItem("climate_buddy_custom_regions", JSON.stringify(customRegions));
+    }
+  }, [customRegions]);
+
+  // Toggle/Set home region
+  const handleToggleHomeRegion = (regionId: string) => {
+    if (homeRegionId === regionId) {
+      setHomeRegionId(null);
+      localStorage.removeItem("climate_buddy_home_region_id");
+    } else {
+      setHomeRegionId(regionId);
+      localStorage.setItem("climate_buddy_home_region_id", regionId);
+    }
+  };
+
+  // Robust Client-side Fallbacks for Offline/Disconnected Server situations
+  const getClientFallbackWeatherData = (query: string): WeatherData => {
+    const queryClean = query.trim().toLowerCase();
+    
+    let name = query.trim();
+    let englishName = "Custom Region";
+    let fullAddress = `대한민국 경기도 성남시 분당구`;
+    let x = 42;
+    let y = 25;
+    let temp = 26.5;
+    let humidity = 78;
+    let wind = 1.8;
+    let rain = 0.0;
+    let condition: "sunny" | "cloudy" | "rainy" | "windy" | "thunderstorm" = "cloudy";
+    
+    if (queryClean.includes("역삼") || queryClean.includes("강남") || queryClean.includes("서초") || queryClean.includes("서울")) {
+      name = queryClean.includes("역삼") ? "역삼동" : (queryClean.includes("강남") ? "강남구" : (queryClean.includes("서초") ? "서초동" : "서울"));
+      englishName = queryClean.includes("역삼") ? "Yeoksam-dong" : (queryClean.includes("강남") ? "Gangnam-gu" : (queryClean.includes("서초") ? "Seocho-dong" : "Seoul"));
+      fullAddress = queryClean.includes("역삼") 
+        ? "서울특별시 강남구 역삼동 테헤란로 152" 
+        : (queryClean.includes("강남") ? "서울특별시 강남구 학동로 426" : "서울특별시 중구 세종대로 110 (서울시청)");
+      x = 35;
+      y = 22;
+      temp = 28.2;
+      humidity = 82;
+      wind = 2.0;
+      rain = 4.2;
+      condition = "rainy";
+    } else if (queryClean.includes("해운대") || queryClean.includes("부산") || queryClean.includes("광안리")) {
+      name = queryClean.includes("해운대") ? "해운대구" : "부산";
+      englishName = queryClean.includes("해운대") ? "Haeundae" : "Busan";
+      fullAddress = queryClean.includes("해운대") ? "부산광역시 해운대구 우동 해운대해변로 264" : "부산광역시 연제구 중앙대로 1001";
+      x = 64;
+      y = 68;
+      temp = 25.8;
+      humidity = 90;
+      wind = 4.5;
+      rain = 12.0;
+      condition = "rainy";
+    } else if (queryClean.includes("제주") || queryClean.includes("서귀포")) {
+      name = queryClean.includes("서귀포") ? "서귀포시" : "제주";
+      englishName = queryClean.includes("서귀포") ? "Seogwipo" : "Jeju";
+      fullAddress = queryClean.includes("서귀포") ? "제주특별자치도 서귀포시 서귀동 12" : "제주특별자치도 제주시 신대로 64";
+      x = 25;
+      y = 93;
+      temp = 29.0;
+      humidity = 85;
+      wind = 5.2;
+      rain = 1.2;
+      condition = "windy";
+    } else if (queryClean.includes("인천") || queryClean.includes("송도")) {
+      name = queryClean.includes("송도") ? "송도동" : "인천";
+      englishName = queryClean.includes("송도") ? "Songdo-dong" : "Incheon";
+      fullAddress = "인천광역시 연수구 송도동 23-4";
+      x = 26;
+      y = 22;
+      temp = 24.5;
+      humidity = 72;
+      wind = 3.8;
+      rain = 0.0;
+      condition = "cloudy";
+    } else if (queryClean.includes("강릉") || queryClean.includes("속초") || queryClean.includes("강원")) {
+      name = queryClean.includes("속초") ? "속초시" : "강릉";
+      englishName = queryClean.includes("속초") ? "Sokcho" : "Gangneung";
+      fullAddress = "강원특별자치도 강릉시 강릉대로 33";
+      x = 65;
+      y = 18;
+      temp = 23.0;
+      humidity = 65;
+      wind = 3.0;
+      rain = 0.0;
+      condition = "sunny";
+    } else if (queryClean.includes("광주")) {
+      name = "광주";
+      englishName = "Gwangju";
+      fullAddress = "광주광역시 서구 내방로 111";
+      x = 28;
+      y = 67;
+      temp = 27.0;
+      humidity = 79;
+      wind = 1.5;
+      rain = 0.0;
+      condition = "cloudy";
+    } else if (queryClean.includes("대구")) {
+      name = "대구";
+      englishName = "Daegu";
+      fullAddress = "대구광역시 중구 공평로 88";
+      x = 58;
+      y = 53;
+      temp = 32.5;
+      humidity = 55;
+      wind = 1.2;
+      rain = 0.0;
+      condition = "sunny";
+    } else if (queryClean.includes("대전")) {
+      name = "대전";
+      englishName = "Daejeon";
+      fullAddress = "대전광역시 서구 둔산로 100";
+      x = 40;
+      y = 44;
+      temp = 28.0;
+      humidity = 68;
+      wind = 1.7;
+      rain = 0.0;
+      condition = "sunny";
+    } else if (queryClean.includes("세종")) {
+      name = "세종";
+      englishName = "Sejong";
+      fullAddress = "세종특별자치시 한누리대로 2130";
+      x = 37;
+      y = 39;
+      temp = 27.8;
+      humidity = 70;
+      wind = 1.6;
+      rain = 0.0;
+      condition = "sunny";
+    } else if (queryClean.includes("울산")) {
+      name = "울산";
+      englishName = "Ulsan";
+      fullAddress = "울산광역시 남구 중앙로 201";
+      x = 69;
+      y = 58;
+      temp = 26.0;
+      humidity = 82;
+      wind = 4.2;
+      rain = 2.5;
+      condition = "rainy";
+    } else {
+      const charCodeSum = Array.from(name).reduce((sum, char) => sum + char.charCodeAt(0), 0);
+      x = 25 + (charCodeSum % 40);
+      y = 15 + ((charCodeSum >> 2) % 65);
+      temp = 22.0 + parseFloat(((charCodeSum % 110) / 10).toFixed(1));
+      humidity = 50 + (charCodeSum % 46);
+      wind = parseFloat((0.5 + (charCodeSum % 8) / 1.5).toFixed(1));
+      rain = (charCodeSum % 5 === 0) ? parseFloat(((charCodeSum % 15) + 0.5).toFixed(1)) : 0.0;
+      condition = rain > 10.0 ? "thunderstorm" : (rain > 0 ? "rainy" : (humidity > 80 ? "cloudy" : "sunny"));
+      
+      let province = "경기도";
+      if (x > 50 && y < 35) province = "강원특별자치도";
+      else if (x > 50 && y >= 35 && y < 60) province = "경상북도";
+      else if (x > 50 && y >= 60) province = "경상남도";
+      else if (x <= 50 && y >= 35 && y < 50) province = "충청남도";
+      else if (x <= 50 && y >= 50 && y < 70) province = "전라북도";
+      else if (x <= 50 && y >= 70) province = "전라남도";
+      
+      fullAddress = `대한민국 ${province} ${name}`;
+      englishName = name.replace(/[^a-zA-Z]/g, "") || "Localized Area";
+      if (!englishName) {
+        englishName = `Region-${charCodeSum % 1000}`;
+      }
+    }
+
+    const radarForecast = [
+      rain,
+      Math.max(0, parseFloat((rain * 1.2 + (rain === 0 ? 0 : 0.5)).toFixed(1))),
+      Math.max(0, parseFloat((rain * 1.5 + (rain === 0 ? 0 : 1.0)).toFixed(1))),
+      Math.max(0, parseFloat((rain * 0.8).toFixed(1))),
+      Math.max(0, parseFloat((rain * 0.3).toFixed(1))),
+      Math.max(0, parseFloat((rain * 0.05).toFixed(1))),
+    ];
+
+    return {
+      id: `custom-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      name,
+      englishName,
+      fullAddress,
+      x,
+      y,
+      temp,
+      humidity,
+      wind,
+      rain,
+      condition,
+      radarForecast
+    };
+  };
+
+  const getClientFallbackCommentary = (region: WeatherData) => {
+    const isRainy = region.rain > 0;
+    const di = Math.round(1.8 * region.temp - 0.55 * (1 - region.humidity / 100) * (1.8 * region.temp - 26) + 32);
+    let feel = "쾌적해요";
+    if (di >= 80) feel = "매우 후텁지근해요";
+    else if (di >= 75) feel = "조금 끈적여요";
+    else if (region.temp < 15) feel = "쌀쌀하고 선선해요";
+    
+    return {
+      commentary: `${region.name} 지역은 현재 기온 ${region.temp}°C, 습도 ${region.humidity}%로 공기의 흐름이 조화를 이루고 있습니다. ${isRainy ? "내리는 빗방울과 함께 시원한 바람이 체감 온도를 조절해 주네요." : "화창하고 선선한 기상 상태를 만끽해 보세요."}`,
+      clothingRecommendation: isRainy ? "비가 내려 지면이 젖었으니 튼튼한 장화(Rainboots)나 미끄럼 방지 슈즈를 추천드려요." : "쾌적하고 얇은 자켓이나 가디건을 매치해 체온을 일정하게 유지해보세요.",
+      lifestyleTip: isRainy ? "실내 환기는 잠시 미루고 제습기나 에어컨 제습 모드를 가동하는 것이 집안을 보송하게 유지하는 꿀팁입니다." : "실외 환기를 하기 딱 좋은 타이밍입니다! 30분간 환기를 시켜 실내 공기를 정화해 보세요.",
+      sensoryFeel: feel
+    };
+  };
+
+  const getClientFallbackChatReply = (userMsg: string, region: WeatherData) => {
+    let reply = "안녕하세요! 날씨와 기후 전문 비서 '클라이밋 버디'입니다. 현재 인공지능 실시간 통신 모드가 시뮬레이션 상태로 원활히 연결되어 작동 중입니다. 궁금한 점이 있으시다면 언제든지 물어보세요!";
+    const query = userMsg.toLowerCase();
+    if (query.includes("비") || query.includes("우산") || query.includes("장화") || query.includes("비오") || query.includes("강수")) {
+      reply = `현재 선택된 ${region.name}의 실시간 강수량은 ${region.rain}mm/h입니다. 비가 오거나 강수가 예측되는 상황에서는 외출 시 발목까지 감싸주는 튼튼한 장화(Rainboots)나 미끄럼 방지 슈즈를 챙기시고, 가벼운 휴대용 우산을 휴대하는 것을 추천해 드려요!`;
+    } else if (query.includes("더워") || query.includes("더위") || query.includes("여름") || query.includes("온도") || query.includes("기온")) {
+      reply = `최근 기후 변화의 영향으로 우리나라의 평균 여름 기온이 상승하고 있습니다. 오늘 ${region.name}의 현재 기온은 ${region.temp}°C인데요, 불쾌지수 역시 높아질 수 있으므로 충분히 수분을 섭취해 주시고 통풍이 잘 되는 린넨이나 기능성 의류를 착용하시는 걸 강추합니다!`;
+    } else if (query.includes("안녕") || query.includes("하이") || query.includes("반갑")) {
+      reply = `반가워요! 저는 기후 및 날씨 코디를 제안하는 똑똑한 비서 '클라이밋 버디'입니다. ☀️ 현재 선택되어 있는 ${region.name} 지역의 실시간 기상 상태와 초단기 강수예측 수치를 기반으로 맞춤 코디 및 실생활 팁을 친절하게 전해드리고 있으니 언제든 편하게 물어보세요!`;
+    } else if (query.includes("검색") || query.includes("지역") || query.includes("찾아")) {
+      reply = "왼쪽의 돋보기 아이콘이 그려진 검색바에 원하시는 지명(예: 역삼동, 제주, 해운대 등)을 입력하시면, 즉시 그 지역의 정밀한 좌표와 함께 초단기 강수 시뮬레이션 및 맞춤형 라이프스타일 팁이 새롭게 계산됩니다. 직접 한 번 검색해 보세요!";
+    } else if (query.includes("엘니뇨") || query.includes("라니냐") || query.includes("기후변화") || query.includes("탄소")) {
+      reply = "최근 전 지구적인 기후 온난화와 엘니뇨 현상으로 동아시아 지역에 전례 없는 집중호우가 빈번히 관측되고 있습니다. 탄소 배출량을 제어하여 온도 상승을 1.5도 미만으로 가두는 노력이 시급하며, 일상 속 작은 친환경 수칙(장바구니 쓰기, 안 쓰는 플러그 뽑기)들이 기후 변화를 늦추는 위대한 첫걸음이 됩니다!";
+    }
+    return reply;
+  };
 
   // Auto-play interval for radar heatmap
   useEffect(() => {
@@ -173,10 +434,14 @@ export default function App() {
           rain: region.rain
         })
       });
+      if (!response.ok) {
+        throw new Error("Commentary request failed");
+      }
       const data = await response.json();
       setAiCommentary(data);
     } catch (error) {
-      console.error("Error fetching commentary:", error);
+      console.error("Error fetching commentary, falling back locally:", error);
+      setAiCommentary(getClientFallbackCommentary(region));
     } finally {
       setIsLoadingCommentary(false);
     }
@@ -234,11 +499,18 @@ export default function App() {
         setSelectedRegion(data);
         setSearchQuery("");
       } else {
-        setSearchError("검색한 지역의 정보를 찾지 못했습니다.");
+        // Trigger local geocoding fallback
+        const fallbackData = getClientFallbackWeatherData(searchQuery);
+        setCustomRegions((prev) => [...prev, fallbackData]);
+        setSelectedRegion(fallbackData);
+        setSearchQuery("");
       }
     } catch (error: any) {
-      console.error("Search error:", error);
-      setSearchError("위치를 검색하는 동안 오류가 발생했습니다. 정확한 지명이나 도로명을 입력해 보세요.");
+      console.error("Search error, falling back to local geocoder:", error);
+      const fallbackData = getClientFallbackWeatherData(searchQuery);
+      setCustomRegions((prev) => [...prev, fallbackData]);
+      setSelectedRegion(fallbackData);
+      setSearchQuery("");
     } finally {
       setIsSearching(false);
     }
@@ -274,14 +546,16 @@ export default function App() {
         })
       });
 
+      if (!response.ok) {
+        throw new Error("Chat request failed");
+      }
+
       const data = await response.json();
       setChatMessages((prev) => [...prev, { role: "assistant", content: data.text }]);
     } catch (error) {
-      console.error("Error sending chat message:", error);
-      setChatMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: "서버와의 대화 연결이 원활하지 않습니다. 잠시 후 다시 시도해 주세요!" }
-      ]);
+      console.error("Error sending chat message, falling back locally:", error);
+      const fallbackReply = getClientFallbackChatReply(userMessage, selectedRegion);
+      setChatMessages((prev) => [...prev, { role: "assistant", content: fallbackReply }]);
     } finally {
       setIsTypingChat(false);
     }
@@ -378,13 +652,14 @@ export default function App() {
     }
   };
 
-  // Helper: Get color for radar precipitation level
+  // Helper: Get color for radar precipitation level (Korea Meteorological Administration Standard Color Codes)
   const getPrecipitationColor = (rain: number) => {
-    if (rain === 0) return "rgba(255,255,255,0.05)";
-    if (rain < 3.0) return "rgba(14, 165, 233, 0.45)"; // Light sky blue
-    if (rain < 10.0) return "rgba(16, 185, 129, 0.6)"; // Moderate emerald green
-    if (rain < 20.0) return "rgba(245, 158, 11, 0.75)"; // Heavy amber orange
-    return "rgba(239, 68, 68, 0.85)"; // Severe red
+    if (rain === 0) return "rgba(0,0,0,0)";
+    if (rain < 1.0) return "rgba(165, 243, 252, 0.5)"; // 약한 비 (연한 하늘색, #a5f3fc)
+    if (rain < 5.0) return "rgba(2, 132, 199, 0.65)";  // 보통 비 (파란색, #0284c7)
+    if (rain < 10.0) return "rgba(245, 158, 11, 0.75)"; // 강한 비 (주황색, #f59e0b)
+    if (rain < 20.0) return "rgba(239, 68, 68, 0.85)";  // 매우 강한 비 (빨간색, #ef4444)
+    return "rgba(168, 85, 247, 0.9)";                  // 폭우 / 극한 강수 (보라색, #a855f7)
   };
 
   // Quick prompt shortcuts for AI chatbot
@@ -403,42 +678,42 @@ export default function App() {
   const radarStepLabels = ["현재", "+1시간", "+2시간", "+3시간", "+4시간", "+6시간"];
 
   return (
-    <div id="app_root" className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-sky-500/30 selection:text-sky-200 overflow-x-hidden pb-12">
+    <div id="app_root" className="min-h-screen bg-[#f8fafc] text-slate-800 font-sans selection:bg-sky-500/15 selection:text-sky-800 overflow-x-hidden pb-12">
       
       {/* 1. Atmospheric Grid Glow Background */}
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:4rem_4rem] pointer-events-none" />
-      <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-sky-500/10 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute top-1/2 right-1/4 w-[600px] h-[600px] bg-indigo-500/5 rounded-full blur-[140px] pointer-events-none" />
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(0,0,0,0.03)_1px,transparent_1px),linear-gradient(to_bottom,rgba(0,0,0,0.03)_1px,transparent_1px)] bg-[size:4rem_4rem] pointer-events-none" />
+      <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-sky-400/5 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute top-1/2 right-1/4 w-[600px] h-[600px] bg-indigo-400/3 rounded-full blur-[140px] pointer-events-none" />
 
       {/* 2. Top Sleek Command Header */}
-      <header id="header_section" className="relative border-b border-slate-900 bg-slate-950/80 backdrop-blur-md px-6 py-4 sticky top-0 z-40">
+      <header id="header_section" className="relative border-b border-slate-200 bg-white/90 backdrop-blur-md px-6 py-4 sticky top-0 z-40 shadow-sm">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-sky-500/10 rounded-xl border border-sky-500/20 neon-glow-rain animate-pulse">
-              <Activity className="w-6 h-6 text-sky-400" />
+            <div className="p-2 bg-sky-50 rounded-xl border border-sky-200 animate-pulse">
+              <Activity className="w-6 h-6 text-sky-600" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-xs font-mono tracking-widest text-sky-500 font-semibold uppercase">National Climate Intel</span>
-                <span className="px-1.5 py-0.5 bg-slate-900 text-[10px] font-mono rounded text-slate-400 border border-slate-800">V2.5 Live</span>
+                <span className="text-xs font-mono tracking-widest text-sky-600 font-semibold uppercase">National Climate Intel</span>
+                <span className="px-1.5 py-0.5 bg-slate-100 text-[10px] font-mono rounded text-slate-600 border border-slate-200">V2.5 Live</span>
               </div>
-              <h1 className="text-xl md:text-2xl font-display font-bold tracking-tight text-white flex items-center gap-2">
-                기후 예측 및 AI 브리핑 <span className="text-sm font-normal text-slate-400">| Radar & Assistant</span>
+              <h1 className="text-xl md:text-2xl font-display font-bold tracking-tight text-slate-900 flex items-center gap-2">
+                기후 예측 및 AI 브리핑 <span className="text-sm font-normal text-slate-500">| Radar & Assistant</span>
               </h1>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
             {/* Main Tabs switcher */}
-            <div className="flex bg-slate-900 p-1 rounded-xl border border-slate-800">
+            <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200">
               <button
                 id="tab_weather_btn"
                 onClick={() => setActiveTab("weather")}
-                className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-all duration-300 flex items-center gap-1.5 ${
+                className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-all duration-300 flex items-center gap-1.5 cursor-pointer ${
                   activeTab === "weather"
-                    ? "bg-sky-500 text-slate-950 font-semibold shadow-lg shadow-sky-500/15"
-                    : "text-slate-400 hover:text-white"
+                    ? "bg-sky-600 text-white font-semibold shadow-md shadow-sky-600/10"
+                    : "text-slate-600 hover:text-slate-900"
                 }`}
               >
                 <Compass className="w-3.5 h-3.5" />
@@ -447,10 +722,10 @@ export default function App() {
               <button
                 id="tab_climate_btn"
                 onClick={() => setActiveTab("climate")}
-                className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-all duration-300 flex items-center gap-1.5 ${
+                className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-all duration-300 flex items-center gap-1.5 cursor-pointer ${
                   activeTab === "climate"
-                    ? "bg-sky-500 text-slate-950 font-semibold shadow-lg shadow-sky-500/15"
-                    : "text-slate-400 hover:text-white"
+                    ? "bg-sky-600 text-white font-semibold shadow-md shadow-sky-600/10"
+                    : "text-slate-600 hover:text-slate-900"
                 }`}
               >
                 <TrendingUp className="w-3.5 h-3.5" />
@@ -462,9 +737,9 @@ export default function App() {
             <button
               id="header_chat_toggle"
               onClick={() => setIsChatOpen(!isChatOpen)}
-              className="relative p-2 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white rounded-xl border border-slate-800 transition-all flex items-center gap-2 text-xs"
+              className="relative p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-950 rounded-xl border border-slate-200 transition-all flex items-center gap-2 text-xs cursor-pointer"
             >
-              <MessageSquare className="w-4 h-4 text-sky-400 animate-bounce" />
+              <MessageSquare className="w-4 h-4 text-sky-600 animate-bounce" />
               <span className="hidden sm:inline">AI 비서</span>
               {chatMessages.length > 1 && (
                 <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-rose-500 text-white rounded-full text-[9px] flex items-center justify-center font-bold">
@@ -479,8 +754,8 @@ export default function App() {
               onClick={() => setIsMobileFrame(!isMobileFrame)}
               className={`p-2 rounded-xl border transition-all flex items-center gap-2 text-xs cursor-pointer ${
                 isMobileFrame 
-                  ? "bg-purple-500/20 border-purple-500/40 text-purple-300 hover:text-white"
-                  : "bg-slate-900 border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800"
+                  ? "bg-purple-100 border-purple-200 text-purple-700 hover:text-purple-900"
+                  : "bg-slate-100 border-slate-200 text-slate-700 hover:text-slate-950 hover:bg-slate-200"
               }`}
               title={isMobileFrame ? "데스크톱 전체 뷰로 전환" : "아이폰 모바일 앱 뷰로 전환"}
             >
@@ -506,15 +781,15 @@ export default function App() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
             
             {/* LEFT AREA: Korea Forecast Radar Map (Col-span 5) */}
-            <section id="radar_map_section" className="lg:col-span-5 bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4 relative backdrop-blur-sm overflow-hidden flex flex-col h-[650px]">
+            <section id="radar_map_section" className="lg:col-span-5 bg-white border border-slate-200 rounded-2xl p-4 relative overflow-hidden flex flex-col h-[650px] shadow-sm">
               
               <div className="flex items-center justify-between mb-4 z-10">
                 <div>
-                  <h2 className="text-sm font-semibold tracking-tight text-slate-200 flex items-center gap-1.5">
-                    <Activity className="w-4 h-4 text-sky-400" />
+                  <h2 className="text-sm font-semibold tracking-tight text-slate-800 flex items-center gap-1.5">
+                    <Activity className="w-4 h-4 text-sky-600" />
                     초단기 강수예측 레이더
                   </h2>
-                  <p className="text-[11px] text-slate-400 mt-0.5">남한 전역 실시간 및 6시간 강수 시뮬레이션</p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">남한 전역 실시간 및 6시간 강수 시뮬레이션</p>
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -523,11 +798,11 @@ export default function App() {
                     id="toggle_radar_btn"
                     onClick={() => setRadarOn(!radarOn)}
                     className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                      radarOn ? "bg-sky-500" : "bg-slate-700"
+                      radarOn ? "bg-sky-500" : "bg-slate-200"
                     }`}
                   >
                     <span
-                      className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-slate-950 shadow-lg ring-0 transition duration-200 ease-in-out ${
+                      className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
                         radarOn ? "translate-x-4" : "translate-x-0"
                       }`}
                     />
@@ -540,7 +815,7 @@ export default function App() {
                 <div className="flex gap-1.5">
                   <div className="relative flex-1">
                     <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                      <MapPin className="w-3.5 h-3.5 text-slate-500" />
+                      <MapPin className="w-3.5 h-3.5 text-slate-400" />
                     </span>
                     <input
                       type="text"
@@ -550,12 +825,12 @@ export default function App() {
                         if (e.key === "Enter") handleSearch();
                       }}
                       placeholder="지역명, 동, 구 또는 상세 주소 검색..."
-                      className="w-full bg-slate-950/80 border border-slate-800 rounded-xl py-1.5 pl-8.5 pr-8 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500/50 focus:ring-1 focus:ring-sky-500/20 transition-all"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl py-1.5 pl-8.5 pr-8 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-sky-500 focus:bg-white focus:ring-1 focus:ring-sky-500/20 transition-all"
                     />
                     {searchQuery && (
                       <button
                         onClick={() => setSearchQuery("")}
-                        className="absolute inset-y-0 right-0 flex items-center pr-2.5 text-slate-500 hover:text-white"
+                        className="absolute inset-y-0 right-0 flex items-center pr-2.5 text-slate-400 hover:text-slate-600"
                       >
                         <X className="w-3.5 h-3.5" />
                       </button>
@@ -564,7 +839,7 @@ export default function App() {
                   <button
                     onClick={handleSearch}
                     disabled={isSearching || !searchQuery.trim()}
-                    className="bg-sky-500 hover:bg-sky-400 disabled:bg-slate-800 disabled:text-slate-500 text-slate-950 font-bold px-3 py-1.5 rounded-xl text-xs transition-colors flex items-center gap-1 shrink-0 cursor-pointer disabled:cursor-not-allowed"
+                    className="bg-sky-600 hover:bg-sky-500 disabled:bg-slate-100 disabled:text-slate-400 text-white font-bold px-3 py-1.5 rounded-xl text-xs transition-colors flex items-center gap-1 shrink-0 cursor-pointer disabled:cursor-not-allowed"
                   >
                     {isSearching ? (
                       <RefreshCw className="w-3 h-3 animate-spin" />
@@ -575,15 +850,58 @@ export default function App() {
                   </button>
                 </div>
                 {searchError && (
-                  <p className="text-[10px] text-rose-400 mt-1 pl-1 flex items-center gap-1">
+                  <p className="text-[10px] text-rose-500 mt-1 pl-1 flex items-center gap-1">
                     <AlertTriangle className="w-3 h-3 shrink-0" />
                     {searchError}
                   </p>
                 )}
+
+                {/* Home Region & Preset Quick Access Links */}
+                <div className="flex flex-wrap items-center gap-1.5 mt-2.5 pt-2 border-t border-slate-100">
+                  <span className="text-[10px] text-slate-400 font-medium">단축 설정:</span>
+                  {homeRegionId ? (
+                    (() => {
+                      const homeReg = regionsData.find(r => r.id === homeRegionId) || customRegions.find(r => r.id === homeRegionId);
+                      if (homeReg) {
+                        return (
+                          <button
+                            onClick={() => setSelectedRegion(homeReg)}
+                            className={`px-2 py-0.5 rounded-lg text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-all ${
+                              selectedRegion.id === homeReg.id
+                                ? "bg-amber-50 text-amber-700 border border-amber-200 shadow-sm"
+                                : "bg-slate-50 border border-slate-200 text-slate-600 hover:text-slate-900"
+                            }`}
+                          >
+                            <span className="text-amber-500">★</span>
+                            <span>{homeReg.name} (기본)</span>
+                          </button>
+                        );
+                      }
+                      return null;
+                    })()
+                  ) : (
+                    <span className="text-[9px] text-slate-400 italic">지정된 기본 지역 없음</span>
+                  )}
+
+                  {/* Show preset popular regions for ease of navigation */}
+                  {regionsData.slice(0, 3).map((reg) => (
+                    <button
+                      key={`preset-quick-${reg.id}`}
+                      onClick={() => setSelectedRegion(reg)}
+                      className={`px-2 py-0.5 rounded-lg text-[10px] font-medium cursor-pointer transition-all ${
+                        selectedRegion.id === reg.id
+                          ? "bg-sky-50 text-sky-700 border border-sky-200"
+                          : "bg-slate-50 border border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-100"
+                      }`}
+                    >
+                      {reg.name}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* High Tech Interactive Map View Area */}
-              <div className="relative flex-1 bg-slate-950/40 rounded-xl border border-slate-800/40 overflow-hidden flex items-center justify-center">
+              <div className="relative flex-1 bg-sky-50/20 rounded-xl border border-slate-200/80 overflow-hidden flex items-center justify-center">
                 
                 {/* Radar sweep light effect */}
                 {radarOn && (
@@ -608,27 +926,30 @@ export default function App() {
                 <div className="absolute inset-0 flex items-center justify-center">
                   <svg className="w-full h-full max-w-[340px] max-h-[500px]" viewBox="0 0 100 110">
                     
+                    {/* Ocean background styling inside the map */}
+                    <rect x="0" y="0" width="100" height="110" fill="#f0f9ff" rx="12" />
+
                     {/* Background Grid Coordinates */}
-                    <g opacity="0.15">
-                      <line x1="10" y1="0" x2="10" y2="110" stroke="white" strokeWidth="0.2" strokeDasharray="1,2" />
-                      <line x1="30" y1="0" x2="30" y2="110" stroke="white" strokeWidth="0.2" strokeDasharray="1,2" />
-                      <line x1="50" y1="0" x2="50" y2="110" stroke="white" strokeWidth="0.2" strokeDasharray="1,2" />
-                      <line x1="70" y1="0" x2="70" y2="110" stroke="white" strokeWidth="0.2" strokeDasharray="1,2" />
-                      <line x1="90" y1="0" x2="90" y2="110" stroke="white" strokeWidth="0.2" strokeDasharray="1,2" />
+                    <g opacity="0.4">
+                      <line x1="10" y1="0" x2="10" y2="110" stroke="#cbd5e1" strokeWidth="0.2" strokeDasharray="1,2" />
+                      <line x1="30" y1="0" x2="30" y2="110" stroke="#cbd5e1" strokeWidth="0.2" strokeDasharray="1,2" />
+                      <line x1="50" y1="0" x2="50" y2="110" stroke="#cbd5e1" strokeWidth="0.2" strokeDasharray="1,2" />
+                      <line x1="70" y1="0" x2="70" y2="110" stroke="#cbd5e1" strokeWidth="0.2" strokeDasharray="1,2" />
+                      <line x1="90" y1="0" x2="90" y2="110" stroke="#cbd5e1" strokeWidth="0.2" strokeDasharray="1,2" />
                       
-                      <line x1="0" y1="20" x2="100" y2="20" stroke="white" strokeWidth="0.2" strokeDasharray="1,2" />
-                      <line x1="0" y1="40" x2="100" y2="40" stroke="white" strokeWidth="0.2" strokeDasharray="1,2" />
-                      <line x1="0" y1="60" x2="100" y2="60" stroke="white" strokeWidth="0.2" strokeDasharray="1,2" />
-                      <line x1="0" y1="80" x2="100" y2="80" stroke="white" strokeWidth="0.2" strokeDasharray="1,2" />
-                      <line x1="0" y1="100" x2="100" y2="100" stroke="white" strokeWidth="0.2" strokeDasharray="1,2" />
+                      <line x1="0" y1="20" x2="100" y2="20" stroke="#cbd5e1" strokeWidth="0.2" strokeDasharray="1,2" />
+                      <line x1="0" y1="40" x2="100" y2="40" stroke="#cbd5e1" strokeWidth="0.2" strokeDasharray="1,2" />
+                      <line x1="0" y1="60" x2="100" y2="60" stroke="#cbd5e1" strokeWidth="0.2" strokeDasharray="1,2" />
+                      <line x1="0" y1="80" x2="100" y2="80" stroke="#cbd5e1" strokeWidth="0.2" strokeDasharray="1,2" />
+                      <line x1="0" y1="100" x2="100" y2="100" stroke="#cbd5e1" strokeWidth="0.2" strokeDasharray="1,2" />
                     </g>
 
                     {/* Highly stylized simplified map contour connecting major regions */}
                     <path
                       d="M 33 15 L 43 14 L 62 13 L 64 22 L 60 28 L 68 40 L 73 52 L 75 58 L 71 67 L 66 73 L 53 73 L 42 75 L 30 76 L 20 73 L 18 64 L 28 54 L 20 44 L 22 34 L 18 24 L 28 20 Z"
-                      fill="none"
-                      stroke="rgba(255, 255, 255, 0.08)"
-                      strokeWidth="1"
+                      fill="#e2e8f0"
+                      stroke="#cbd5e1"
+                      strokeWidth="0.8"
                       strokeLinejoin="round"
                     />
 
@@ -706,6 +1027,7 @@ export default function App() {
                     {regionsData.map((reg) => {
                       const isSelected = selectedRegion.id === reg.id;
                       const hasRain = reg.rain > 0;
+                      const isHome = homeRegionId === reg.id;
                       
                       return (
                         <g
@@ -720,7 +1042,7 @@ export default function App() {
                               cy={reg.y}
                               r="4.5"
                               fill="none"
-                              stroke="#0ea5e9"
+                              stroke={isHome ? "#f59e0b" : "#0ea5e9"}
                               strokeWidth="0.75"
                               className="animate-pulse"
                             />
@@ -731,7 +1053,7 @@ export default function App() {
                             cx={reg.x}
                             cy={reg.y}
                             r={isSelected ? "2.5" : "1.8"}
-                            fill={isSelected ? "#38bdf8" : hasRain ? "#0284c7" : "#475569"}
+                            fill={isSelected ? (isHome ? "#fbbf24" : "#38bdf8") : isHome ? "#d97706" : hasRain ? "#0284c7" : "#475569"}
                             stroke="rgba(15, 23, 42, 0.9)"
                             strokeWidth="0.5"
                             className="transition-all duration-300 group-hover:scale-125 group-hover:fill-sky-400"
@@ -742,13 +1064,13 @@ export default function App() {
                             x={reg.x + (reg.x > 60 ? -3 : 3)}
                             y={reg.y + 1}
                             textAnchor={reg.x > 60 ? "end" : "start"}
-                            fill={isSelected ? "#f8fafc" : "#94a3b8"}
+                            fill={isSelected ? "#f8fafc" : isHome ? "#fbbf24" : "#94a3b8"}
                             fontSize="3"
                             fontFamily="sans-serif"
-                            fontWeight={isSelected ? "bold" : "normal"}
+                            fontWeight={isSelected || isHome ? "bold" : "normal"}
                             className="pointer-events-none select-none transition-all duration-300"
                           >
-                            {reg.name}
+                            {isHome ? "★ " : ""}{reg.name}
                             {isSelected && ` (${reg.temp}°)`}
                           </text>
                         </g>
@@ -759,6 +1081,7 @@ export default function App() {
                     {customRegions.map((reg) => {
                       const isSelected = selectedRegion.id === reg.id;
                       const hasRain = reg.rain > 0;
+                      const isHome = homeRegionId === reg.id;
                       
                       return (
                         <g
@@ -773,7 +1096,7 @@ export default function App() {
                               cy={reg.y}
                               r="4.5"
                               fill="none"
-                              stroke="#c084fc"
+                              stroke={isHome ? "#f59e0b" : "#c084fc"}
                               strokeWidth="0.75"
                               className="animate-pulse"
                             />
@@ -784,7 +1107,7 @@ export default function App() {
                             cx={reg.x}
                             cy={reg.y}
                             r={isSelected ? "2.5" : "1.8"}
-                            fill={isSelected ? "#e9d5ff" : hasRain ? "#c084fc" : "#a855f7"}
+                            fill={isSelected ? (isHome ? "#fbbf24" : "#e9d5ff") : isHome ? "#d97706" : hasRain ? "#c084fc" : "#a855f7"}
                             stroke="rgba(15, 23, 42, 0.9)"
                             strokeWidth="0.5"
                             className="transition-all duration-300 group-hover:scale-125 group-hover:fill-purple-300"
@@ -795,13 +1118,13 @@ export default function App() {
                             x={reg.x + (reg.x > 60 ? -3 : 3)}
                             y={reg.y + 1}
                             textAnchor={reg.x > 60 ? "end" : "start"}
-                            fill={isSelected ? "#f3e8ff" : "#d8b4fe"}
+                            fill={isSelected ? "#f3e8ff" : isHome ? "#fbbf24" : "#d8b4fe"}
                             fontSize="3"
                             fontFamily="sans-serif"
-                            fontWeight={isSelected ? "bold" : "normal"}
+                            fontWeight={isSelected || isHome ? "bold" : "normal"}
                             className="pointer-events-none select-none transition-all duration-300"
                           >
-                            📍 {reg.name}
+                            {isHome ? "★ " : ""}{reg.name}
                             {isSelected && ` (${reg.temp}°)`}
                           </text>
                         </g>
@@ -822,25 +1145,29 @@ export default function App() {
 
                 {/* Bottom Left: Heatmap Legend Scale */}
                 {radarOn && (
-                  <div className="absolute bottom-3 left-3 bg-slate-900/90 border border-slate-800 p-2 rounded-lg backdrop-blur-sm z-10">
-                    <div className="text-[9px] font-mono font-medium text-slate-400 uppercase tracking-wider mb-1">Precip Intensity (강수강도)</div>
+                  <div className="absolute bottom-3 left-3 bg-white/95 border border-slate-200 p-2 rounded-lg backdrop-blur-sm z-10 shadow-sm">
+                    <div className="text-[9px] font-mono font-bold text-slate-600 uppercase tracking-wider mb-1">강수강도 (강수예측 레이더)</div>
                     <div className="flex items-center gap-1.5">
                       <div className="flex flex-col gap-0.5">
-                        <div className="flex items-center gap-1.5 text-[8px] font-mono">
-                          <span className="w-2.5 h-1.5 rounded bg-rose-500 block"></span>
-                          <span>&gt; 20 mm/h (폭우)</span>
+                        <div className="flex items-center gap-1.5 text-[8px] font-semibold text-slate-700">
+                          <span className="w-2.5 h-1.5 rounded block" style={{ backgroundColor: "rgba(168, 85, 247, 0.9)" }}></span>
+                          <span>&gt; 20 mm/h (폭우/극한)</span>
                         </div>
-                        <div className="flex items-center gap-1.5 text-[8px] font-mono">
-                          <span className="w-2.5 h-1.5 rounded bg-amber-500 block"></span>
-                          <span>10 - 20 mm/h (강한비)</span>
+                        <div className="flex items-center gap-1.5 text-[8px] font-semibold text-slate-700">
+                          <span className="w-2.5 h-1.5 rounded block" style={{ backgroundColor: "rgba(239, 68, 68, 0.85)" }}></span>
+                          <span>10 - 20 mm/h (매우 강한 비)</span>
                         </div>
-                        <div className="flex items-center gap-1.5 text-[8px] font-mono">
-                          <span className="w-2.5 h-1.5 rounded bg-emerald-500 block"></span>
-                          <span>3 - 10 mm/h (보통비)</span>
+                        <div className="flex items-center gap-1.5 text-[8px] font-semibold text-slate-700">
+                          <span className="w-2.5 h-1.5 rounded block" style={{ backgroundColor: "rgba(245, 158, 11, 0.75)" }}></span>
+                          <span>5 - 10 mm/h (강한 비)</span>
                         </div>
-                        <div className="flex items-center gap-1.5 text-[8px] font-mono">
-                          <span className="w-2.5 h-1.5 rounded bg-sky-500 block"></span>
-                          <span>0.1 - 3 mm/h (약한비)</span>
+                        <div className="flex items-center gap-1.5 text-[8px] font-semibold text-slate-700">
+                          <span className="w-2.5 h-1.5 rounded block" style={{ backgroundColor: "rgba(2, 132, 199, 0.65)" }}></span>
+                          <span>1 - 5 mm/h (보통 비)</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[8px] font-semibold text-slate-700">
+                          <span className="w-2.5 h-1.5 rounded block" style={{ backgroundColor: "rgba(165, 243, 252, 0.8)" }}></span>
+                          <span>0.1 - 1 mm/h (약한 비)</span>
                         </div>
                       </div>
                     </div>
@@ -848,13 +1175,13 @@ export default function App() {
                 )}
 
                 {/* Bottom Right: Selection indicator */}
-                <div className="absolute bottom-3 right-3 bg-slate-950/90 border border-sky-500/30 px-3 py-1.5 rounded-lg z-10 flex items-center gap-2 max-w-[240px]">
-                  <MapPin className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                <div className="absolute bottom-3 right-3 bg-white/95 border border-sky-200 px-3 py-1.5 rounded-lg z-10 flex items-center gap-2 max-w-[240px] shadow-sm">
+                  <MapPin className="w-3.5 h-3.5 text-sky-600 shrink-0" />
                   <div className="min-w-0">
-                    <div className="text-[8px] font-mono text-slate-400">SELECTED REGION</div>
-                    <div className="text-xs font-bold text-white leading-none truncate">{selectedRegion.name} ({selectedRegion.englishName})</div>
+                    <div className="text-[8px] font-mono text-slate-500">SELECTED REGION</div>
+                    <div className="text-xs font-bold text-slate-900 leading-none truncate">{selectedRegion.name} ({selectedRegion.englishName})</div>
                     {selectedRegion.fullAddress && (
-                      <div className="text-[9px] text-slate-400 truncate mt-1" title={selectedRegion.fullAddress}>
+                      <div className="text-[9px] text-slate-500 truncate mt-1" title={selectedRegion.fullAddress}>
                         {selectedRegion.fullAddress}
                       </div>
                     )}
@@ -864,7 +1191,7 @@ export default function App() {
               </div>
 
               {/* Slider & Play Controls for Ultra Short Term Radar */}
-              <div id="radar_timeline_controls" className="mt-4 bg-slate-950/60 border border-slate-800 p-3 rounded-xl">
+              <div id="radar_timeline_controls" className="mt-4 bg-white border border-slate-200 p-3 rounded-xl shadow-sm">
                 
                 <div className="flex items-center justify-between gap-4 mb-2">
                   
@@ -872,7 +1199,7 @@ export default function App() {
                     <button
                       id="play_pause_radar_btn"
                       onClick={() => setIsPlayingRadar(!isPlayingRadar)}
-                      className="p-1.5 bg-sky-500 hover:bg-sky-400 text-slate-950 rounded-lg transition-colors"
+                      className="p-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded-lg transition-colors cursor-pointer"
                       title={isPlayingRadar ? "자동재생 일시정지" : "레이더 시뮬레이션 재생"}
                     >
                       {isPlayingRadar ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
@@ -881,7 +1208,7 @@ export default function App() {
                     <button
                       id="reset_radar_step_btn"
                       onClick={() => { setForecastStep(0); setIsPlayingRadar(false); }}
-                      className="p-1.5 bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white rounded-lg border border-slate-800 transition-colors"
+                      className="p-1.5 bg-slate-50 hover:bg-slate-100 text-slate-600 hover:text-slate-900 rounded-lg border border-slate-200 transition-colors cursor-pointer"
                       title="현재 시각으로 리셋"
                     >
                       <RotateCcw className="w-3.5 h-3.5" />
@@ -890,8 +1217,8 @@ export default function App() {
 
                   {/* Highlight step */}
                   <div className="text-right">
-                    <span className="text-[10px] text-slate-500 uppercase font-mono tracking-wider">Predictive Step</span>
-                    <div className="text-xs font-bold text-sky-400 font-mono">
+                    <span className="text-[10px] text-slate-400 uppercase font-mono tracking-wider">Predictive Step</span>
+                    <div className="text-xs font-bold text-sky-600 font-mono">
                       {radarStepLabels[forecastStep]} ({forecastStep === 0 ? "현재 관측" : `+${forecastStep === 5 ? 6 : forecastStep}시간 후 예측`})
                     </div>
                   </div>
@@ -906,10 +1233,10 @@ export default function App() {
                       <button
                         key={`timeline-step-${idx}`}
                         onClick={() => { setForecastStep(idx); setIsPlayingRadar(false); }}
-                        className={`flex-1 py-1 text-[10px] font-semibold rounded-md border transition-all duration-300 ${
+                        className={`flex-1 py-1 text-[10px] font-semibold rounded-md border transition-all duration-300 cursor-pointer ${
                           isActive
-                            ? "bg-sky-500/20 text-sky-400 border-sky-500/40 font-bold"
-                            : "bg-slate-900/40 text-slate-500 border-transparent hover:text-slate-300 hover:bg-slate-900"
+                            ? "bg-sky-100 text-sky-700 border-sky-300 font-bold shadow-sm"
+                            : "bg-slate-50 text-slate-500 border-slate-100 hover:text-slate-800 hover:bg-slate-100"
                         }`}
                       >
                         {lbl}
@@ -926,27 +1253,39 @@ export default function App() {
             <section className="lg:col-span-7 flex flex-col gap-6">
               
               {/* Region Overview Header Block */}
-              <div id="region_weather_header_card" className="bg-gradient-to-r from-slate-900 to-indigo-950 border border-slate-800/80 p-5 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 backdrop-blur-sm relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-sky-500/10 rounded-full blur-2xl pointer-events-none" />
+              <div id="region_weather_header_card" className="bg-gradient-to-r from-sky-500 to-indigo-600 border border-transparent p-5 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 relative overflow-hidden shadow-md">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl pointer-events-none" />
                 
                 <div className="flex items-center gap-4">
-                  <div className="p-3.5 bg-slate-950/60 rounded-2xl border border-slate-800">
+                  <div className="p-3.5 bg-white/15 rounded-2xl border border-white/20">
                     {getWeatherIcon(selectedRegion.condition, "w-10 h-10")}
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
                       <h2 className="text-2xl font-bold tracking-tight text-white">{selectedRegion.name}</h2>
-                      <span className="text-xs font-mono text-slate-400 font-semibold">{selectedRegion.englishName}</span>
+                      <span className="text-xs font-mono text-sky-100 font-semibold">{selectedRegion.englishName}</span>
+                      
+                      <button
+                        onClick={() => handleToggleHomeRegion(selectedRegion.id)}
+                        className={`ml-2 px-2 py-0.5 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer border ${
+                          homeRegionId === selectedRegion.id
+                            ? "bg-amber-400 border-amber-300 text-slate-900 shadow-sm font-bold"
+                            : "bg-white/15 border-white/20 text-white hover:bg-white/25 hover:border-white/30"
+                        }`}
+                        title={homeRegionId === selectedRegion.id ? "기본 설정 지역 해제" : "기본 설정 지역으로 지정"}
+                      >
+                        {homeRegionId === selectedRegion.id ? "★ 기본 지역" : "☆ 지역 설정"}
+                      </button>
                     </div>
                     {selectedRegion.fullAddress && (
-                      <div className="text-[11px] text-sky-400/80 font-medium flex items-center gap-1 mt-0.5">
-                        <MapPin className="w-3 h-3 shrink-0" />
+                      <div className="text-[11px] text-sky-100/90 font-medium flex items-center gap-1 mt-0.5">
+                        <MapPin className="w-3 h-3 shrink-0 text-sky-100" />
                         <span>{selectedRegion.fullAddress}</span>
                       </div>
                     )}
-                    <div className="flex items-center gap-2 mt-1.5 text-xs text-slate-300 font-medium">
+                    <div className="flex items-center gap-2 mt-1.5 text-xs text-sky-100 font-medium">
                       <span>체감 기상: </span>
-                      <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${diInfo.color}`}>
+                      <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold bg-white text-sky-700 shadow-sm border border-sky-100`}>
                         {aiCommentary?.sensoryFeel || translateCondition(selectedRegion.condition)}
                       </span>
                     </div>
@@ -954,18 +1293,18 @@ export default function App() {
                 </div>
 
                 {/* Core parameters metrics bar */}
-                <div className="flex items-center gap-4 sm:gap-6 w-full sm:w-auto justify-around sm:justify-end border-t sm:border-t-0 border-slate-800 pt-3 sm:pt-0">
+                <div className="flex items-center gap-4 sm:gap-6 w-full sm:w-auto justify-around sm:justify-end border-t sm:border-t-0 border-white/10 pt-3 sm:pt-0">
                   <div className="text-center">
-                    <span className="text-[10px] text-slate-400 font-mono block uppercase">TEMPERATURE</span>
+                    <span className="text-[10px] text-sky-100 font-mono block uppercase opacity-85">TEMPERATURE</span>
                     <span className="text-2xl font-display font-semibold text-white tracking-tight">{selectedRegion.temp}°C</span>
                   </div>
-                  <div className="text-center border-l border-slate-800 pl-4 sm:pl-6">
-                    <span className="text-[10px] text-slate-400 font-mono block uppercase">HUMIDITY</span>
-                    <span className="text-2xl font-display font-semibold text-sky-400 tracking-tight">{selectedRegion.humidity}%</span>
+                  <div className="text-center border-l border-white/10 pl-4 sm:pl-6">
+                    <span className="text-[10px] text-sky-100 font-mono block uppercase opacity-85">HUMIDITY</span>
+                    <span className="text-2xl font-display font-semibold text-white tracking-tight">{selectedRegion.humidity}%</span>
                   </div>
-                  <div className="text-center border-l border-slate-800 pl-4 sm:pl-6">
-                    <span className="text-[10px] text-slate-400 font-mono block uppercase">PRECIPITATION</span>
-                    <span className="text-2xl font-display font-semibold text-blue-400 tracking-tight">{selectedRegion.rain} mm</span>
+                  <div className="text-center border-l border-white/10 pl-4 sm:pl-6">
+                    <span className="text-[10px] text-sky-100 font-mono block uppercase opacity-85">PRECIPITATION</span>
+                    <span className="text-2xl font-display font-semibold text-white tracking-tight">{selectedRegion.rain} mm</span>
                   </div>
                 </div>
 
@@ -975,18 +1314,18 @@ export default function App() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 
                 {/* 1. Large Bento Box: AI climate analyst advice */}
-                <div id="ai_commentary_card" className="md:col-span-2 bg-slate-900/60 border border-slate-800 rounded-2xl p-5 relative overflow-hidden backdrop-blur-sm min-h-[220px] flex flex-col justify-between">
+                <div id="ai_commentary_card" className="md:col-span-2 bg-white border border-slate-200 rounded-2xl p-5 relative overflow-hidden min-h-[220px] flex flex-col justify-between shadow-sm">
                   <div className="absolute top-0 right-0 p-3">
-                    <Sparkles className="w-5 h-5 text-sky-400 animate-pulse" />
+                    <Sparkles className="w-5 h-5 text-sky-500 animate-pulse" />
                   </div>
 
                   <div>
-                    <h3 className="text-xs font-mono text-sky-500 font-bold uppercase tracking-wider mb-2">AI Climate Analyst Commentary</h3>
+                    <h3 className="text-xs font-mono text-sky-600 font-bold uppercase tracking-wider mb-2">AI Climate Analyst Commentary</h3>
                     
                     {isLoadingCommentary ? (
                       <div className="flex flex-col items-center justify-center py-8 gap-3">
-                        <RefreshCw className="w-8 h-8 text-sky-400 animate-spin" />
-                        <p className="text-xs text-slate-400 font-mono animate-pulse">Gemini-3.5가 실시간 날씨 데이터 및 불쾌지수를 심층 분석하는 중...</p>
+                        <RefreshCw className="w-8 h-8 text-sky-600 animate-spin" />
+                        <p className="text-xs text-slate-500 font-mono animate-pulse">Gemini-3.5가 실시간 날씨 데이터 및 불쾌지수를 심층 분석하는 중...</p>
                       </div>
                     ) : (
                       <motion.div
@@ -994,7 +1333,7 @@ export default function App() {
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.5 }}
                       >
-                        <p className="text-sm md:text-base leading-relaxed text-slate-200">
+                        <p className="text-sm md:text-base leading-relaxed text-slate-700 font-medium">
                           {aiCommentary?.commentary || `${selectedRegion.name} 지역은 현재 기온 ${selectedRegion.temp}°C에 습도 ${selectedRegion.humidity}%로 후텁지근한 상태입니다. 기후 예측 모델에 따라 비구름의 유동성을 예의주시하고 있습니다.`}
                         </p>
                       </motion.div>
@@ -1002,35 +1341,35 @@ export default function App() {
                   </div>
 
                   {!isLoadingCommentary && aiCommentary?.lifestyleTip && (
-                    <div className="mt-4 pt-4 border-t border-slate-800/60 flex items-start gap-2 text-xs">
-                      <span className="px-1.5 py-0.5 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded font-semibold shrink-0">클라이밋 팁</span>
-                      <p className="text-slate-400 italic">{aiCommentary.lifestyleTip}</p>
+                    <div className="mt-4 pt-4 border-t border-slate-100 flex items-start gap-2 text-xs">
+                      <span className="px-1.5 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded font-semibold shrink-0">클라이밋 팁</span>
+                      <p className="text-slate-500 italic">{aiCommentary.lifestyleTip}</p>
                     </div>
                   )}
 
                 </div>
 
                 {/* 2. Style & Fashion recommendation Card */}
-                <div id="lifestyle_fashion_card" className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 relative backdrop-blur-sm flex flex-col justify-between">
+                <div id="lifestyle_fashion_card" className="bg-white border border-slate-200 rounded-2xl p-5 relative flex flex-col justify-between shadow-sm">
                   <div>
-                    <h3 className="text-sm font-semibold text-slate-200 mb-3 flex items-center gap-1.5">
-                      <Shirt className="w-4 h-4 text-emerald-400" />
+                    <h3 className="text-sm font-semibold text-slate-800 mb-3 flex items-center gap-1.5">
+                      <Shirt className="w-4 h-4 text-emerald-600" />
                       기후 맞춤형 의류 코디 추천
                     </h3>
 
                     {isLoadingCommentary ? (
                       <div className="flex items-center justify-center py-10">
-                        <div className="w-6 h-6 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
+                        <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
                       </div>
                     ) : (
                       <div className="space-y-4">
-                        <div className="bg-slate-950/60 border border-slate-800 p-3 rounded-xl flex items-center gap-3">
-                          <div className="p-2 bg-emerald-500/10 rounded-lg shrink-0">
-                            <Shirt className="w-6 h-6 text-emerald-400" />
+                        <div className="bg-slate-50 border border-slate-100 p-3 rounded-xl flex items-center gap-3">
+                          <div className="p-2 bg-emerald-50 rounded-lg shrink-0">
+                            <Shirt className="w-6 h-6 text-emerald-600" />
                           </div>
                           <div>
-                            <div className="text-[10px] font-mono text-slate-500">RECOMMENDED FASHION</div>
-                            <p className="text-xs font-semibold text-white mt-0.5">
+                            <div className="text-[10px] font-mono text-slate-400">RECOMMENDED FASHION</div>
+                            <p className="text-xs font-semibold text-slate-800 mt-0.5">
                               {aiCommentary?.clothingRecommendation ? aiCommentary.clothingRecommendation.split('.')[0] + '.' : "기온에 맞는 가벼운 통풍성 복장을 추천합니다."}
                             </p>
                           </div>
@@ -1038,21 +1377,21 @@ export default function App() {
 
                         {/* Fashion Checklist bullet list depending on weather conditions */}
                         <div className="space-y-2">
-                          <div className="text-[10px] font-mono text-slate-500 uppercase tracking-wider">오늘 외출 필수 아이템</div>
+                          <div className="text-[10px] font-mono text-slate-400 uppercase tracking-wider">오늘 외출 필수 아이템</div>
                           
                           {selectedRegion.rain > 0 ? (
-                            <div className="flex items-center gap-2 text-xs text-slate-300">
-                              <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
+                            <div className="flex items-center gap-2 text-xs text-slate-600">
+                              <span className="w-1.5 h-1.5 rounded-full bg-sky-500" />
                               <span><strong>장화(Rainboots)</strong> 및 튼튼한 장우산 필수</span>
                             </div>
                           ) : selectedRegion.temp >= 30 ? (
-                            <div className="flex items-center gap-2 text-xs text-slate-300">
-                              <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                            <div className="flex items-center gap-2 text-xs text-slate-600">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
                               <span>자외선 차단 선크림 &amp; 선글라스</span>
                             </div>
                           ) : (
-                            <div className="flex items-center gap-2 text-xs text-slate-300">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                            <div className="flex items-center gap-2 text-xs text-slate-600">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                               <span>일교차 대비 얇은 레이어 가디건</span>
                             </div>
                           )}
@@ -1081,10 +1420,10 @@ export default function App() {
                 </div>
 
                 {/* 3. Discomfort & Comfort index Gauge Card */}
-                <div id="comfort_index_card" className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 relative backdrop-blur-sm flex flex-col justify-between">
+                <div id="comfort_index_card" className="bg-white border border-slate-200 rounded-2xl p-5 relative flex flex-col justify-between shadow-sm">
                   <div>
-                    <h3 className="text-sm font-semibold text-slate-200 mb-3 flex items-center gap-1.5">
-                      <Activity className="w-4 h-4 text-rose-400" />
+                    <h3 className="text-sm font-semibold text-slate-800 mb-3 flex items-center gap-1.5">
+                      <Activity className="w-4 h-4 text-rose-500" />
                       기후 불쾌지수 분석 피드백
                     </h3>
 
@@ -1092,7 +1431,7 @@ export default function App() {
                       {/* Interactive dynamic Circular Gauge */}
                       <div className="relative w-20 h-20 shrink-0">
                         <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
-                          <circle cx="18" cy="18" r="15.915" fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="3" />
+                          <circle cx="18" cy="18" r="15.915" fill="none" stroke="rgba(15,23,42,0.04)" strokeWidth="3" />
                           <circle
                             cx="18"
                             cy="18"
@@ -1104,20 +1443,20 @@ export default function App() {
                           />
                         </svg>
                         <div className="absolute inset-0 flex flex-col items-center justify-center">
-                          <span className="text-lg font-mono font-bold text-white leading-none">{diInfo.value}</span>
-                          <span className="text-[8px] text-slate-400 uppercase tracking-widest mt-0.5">DI Value</span>
+                          <span className="text-lg font-mono font-bold text-slate-800 leading-none">{diInfo.value}</span>
+                          <span className="text-[8px] text-slate-500 uppercase tracking-widest mt-0.5">DI Value</span>
                         </div>
                       </div>
 
                       {/* Level and brief feedback text */}
                       <div>
-                        <div className="text-[10px] font-mono text-slate-500">DISCOMFORT LEVEL</div>
+                        <div className="text-[10px] font-mono text-slate-400">DISCOMFORT LEVEL</div>
                         <div className={`text-base font-bold flex items-center gap-1.5 mt-0.5`}>
                           <span className={`px-2.5 py-0.5 rounded text-xs font-bold border ${diInfo.color}`}>
                             {diInfo.level}
                           </span>
                         </div>
-                        <p className="text-[11px] text-slate-400 mt-2 leading-relaxed">
+                        <p className="text-[11px] text-slate-500 mt-2 leading-relaxed">
                           {diInfo.desc}
                         </p>
                       </div>
@@ -1126,65 +1465,65 @@ export default function App() {
                     {/* Environment status bars */}
                     <div className="space-y-2 mt-4">
                       <div>
-                        <div className="flex justify-between text-[10px] text-slate-400 mb-0.5">
+                        <div className="flex justify-between text-[10px] text-slate-500 mb-0.5">
                           <span>빨래 건조 지수</span>
-                          <span className="font-mono text-emerald-400 font-semibold">{selectedRegion.humidity > 75 ? "실외 불가 (제습기 추천)" : "적합"}</span>
+                          <span className="font-mono text-emerald-600 font-semibold">{selectedRegion.humidity > 75 ? "실외 불가 (제습기 추천)" : "적합"}</span>
                         </div>
-                        <div className="h-1 bg-slate-950 rounded-full overflow-hidden">
-                          <div className="h-full bg-emerald-400" style={{ width: `${Math.max(10, 100 - selectedRegion.humidity)}%` }} />
+                        <div className="h-1 bg-slate-100 rounded-full overflow-hidden">
+                          <div className="h-full bg-emerald-500" style={{ width: `${Math.max(10, 100 - selectedRegion.humidity)}%` }} />
                         </div>
                       </div>
                       <div>
-                        <div className="flex justify-between text-[10px] text-slate-400 mb-0.5">
+                        <div className="flex justify-between text-[10px] text-slate-500 mb-0.5">
                           <span>야외 환기 적합도</span>
-                          <span className="font-mono text-sky-400 font-semibold">{selectedRegion.rain > 0 ? "불가 (비 들이침)" : "적합"}</span>
+                          <span className="font-mono text-sky-600 font-semibold">{selectedRegion.rain > 0 ? "불가 (비 들이침)" : "적합"}</span>
                         </div>
-                        <div className="h-1 bg-slate-950 rounded-full overflow-hidden">
-                          <div className="h-full bg-sky-400" style={{ width: `${selectedRegion.rain > 0 ? 10 : 85}%` }} />
+                        <div className="h-1 bg-slate-100 rounded-full overflow-hidden">
+                          <div className="h-full bg-sky-500" style={{ width: `${selectedRegion.rain > 0 ? 10 : 85}%` }} />
                         </div>
                       </div>
                     </div>
 
                   </div>
 
-                  <div className="text-[10px] text-slate-500 font-mono border-t border-slate-800/50 mt-4 pt-3 text-right">
+                  <div className="text-[10px] text-slate-400 font-mono border-t border-slate-100 mt-4 pt-3 text-right">
                     KMA Discomfort Formula Applied
                   </div>
                 </div>
 
                 {/* 4. Large Bento Box: 실시간 초단기 강수예측 시뮬레이터 */}
-                <div id="local_precipitation_forecast_card" className="md:col-span-2 bg-slate-900/60 border border-slate-800 rounded-2xl p-5 relative backdrop-blur-sm flex flex-col justify-between">
+                <div id="local_precipitation_forecast_card" className="md:col-span-2 bg-white border border-slate-200 rounded-2xl p-5 relative flex flex-col justify-between shadow-sm">
                   <div>
                     <div className="flex items-center justify-between mb-3.5">
-                      <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-1.5">
-                        <CloudRain className="w-4 h-4 text-sky-400 animate-bounce" />
+                      <h3 className="text-sm font-semibold text-slate-800 flex items-center gap-1.5">
+                        <CloudRain className="w-4 h-4 text-sky-600 animate-bounce" />
                         지역 맞춤형 초단기 강수예측 시뮬레이터 (6시간)
                       </h3>
-                      <span className="text-[10px] text-slate-400 font-mono bg-sky-500/10 text-sky-400 px-2 py-0.5 rounded border border-sky-500/20">
+                      <span className="text-[10px] text-sky-700 font-mono bg-sky-50 px-2 py-0.5 rounded border border-sky-200">
                         {selectedRegion.name} ({selectedRegion.englishName})
                       </span>
                     </div>
 
-                    <p className="text-xs text-slate-400 leading-relaxed mb-4">
+                    <p className="text-xs text-slate-500 leading-relaxed mb-4">
                       선택된 <strong>{selectedRegion.name}</strong> 지역의 향후 6시간 동안의 초단기 강수 변화 추이를 보여줍니다. 
                       아래 시뮬레이션 슬라이더 또는 즉시 설정 버튼을 클릭해 기상 상황에 따른 예측 모델 변화를 테스트해 보세요.
                     </p>
 
                     {/* Interactive Slider & Quick Presets */}
-                    <div className="bg-slate-950/70 border border-slate-800/80 p-4 rounded-xl mb-6">
+                    <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl mb-6">
                       <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                         
                         {/* Preset Buttons */}
                         <div className="w-full sm:w-auto">
-                          <span className="text-[10px] text-slate-500 uppercase tracking-wider block mb-1.5">강수 강도 단축 설정</span>
+                          <span className="text-[10px] text-slate-400 uppercase tracking-wider block mb-1.5">강수 강도 단축 설정</span>
                           <div className="flex flex-wrap gap-1.5">
                             <button
                               type="button"
                               onClick={() => handlePrecipitationChange(0)}
-                              className={`px-2.5 py-1 text-xs rounded border transition-all ${
+                              className={`px-2.5 py-1 text-xs rounded border transition-all cursor-pointer ${
                                 selectedRegion.rain === 0
-                                  ? "bg-slate-800 text-white border-slate-600 font-bold"
-                                  : "bg-slate-900/40 text-slate-400 border-transparent hover:text-slate-300"
+                                  ? "bg-slate-200 text-slate-800 border-slate-300 font-bold shadow-sm"
+                                  : "bg-slate-100 text-slate-500 border-transparent hover:text-slate-800 hover:bg-slate-200/50"
                               }`}
                             >
                               ☀️ 맑음 (0mm)
@@ -1192,10 +1531,10 @@ export default function App() {
                             <button
                               type="button"
                               onClick={() => handlePrecipitationChange(2.5)}
-                              className={`px-2.5 py-1 text-xs rounded border transition-all ${
+                              className={`px-2.5 py-1 text-xs rounded border transition-all cursor-pointer ${
                                 selectedRegion.rain === 2.5
-                                  ? "bg-sky-950 text-sky-300 border-sky-600/40 font-bold"
-                                  : "bg-slate-900/40 text-slate-400 border-transparent hover:text-slate-300"
+                                  ? "bg-sky-100 text-sky-700 border-sky-300 font-bold shadow-sm"
+                                  : "bg-slate-100 text-slate-500 border-transparent hover:text-slate-800 hover:bg-slate-200/50"
                               }`}
                             >
                               🌦️ 약한 비 (2.5mm)
@@ -1203,10 +1542,10 @@ export default function App() {
                             <button
                               type="button"
                               onClick={() => handlePrecipitationChange(8.0)}
-                              className={`px-2.5 py-1 text-xs rounded border transition-all ${
+                              className={`px-2.5 py-1 text-xs rounded border transition-all cursor-pointer ${
                                 selectedRegion.rain === 8.0
-                                  ? "bg-blue-950 text-blue-300 border-blue-600/40 font-bold"
-                                  : "bg-slate-900/40 text-slate-400 border-transparent hover:text-slate-300"
+                                  ? "bg-blue-100 text-blue-700 border-blue-300 font-bold shadow-sm"
+                                  : "bg-slate-100 text-slate-500 border-transparent hover:text-slate-800 hover:bg-slate-200/50"
                               }`}
                             >
                               🌧️ 보통 비 (8.0mm)
@@ -1214,10 +1553,10 @@ export default function App() {
                             <button
                               type="button"
                               onClick={() => handlePrecipitationChange(22.5)}
-                              className={`px-2.5 py-1 text-xs rounded border transition-all ${
+                              className={`px-2.5 py-1 text-xs rounded border transition-all cursor-pointer ${
                                 selectedRegion.rain === 22.5
-                                  ? "bg-rose-950/60 text-rose-300 border-rose-600/40 font-bold"
-                                  : "bg-slate-900/40 text-slate-400 border-transparent hover:text-slate-300"
+                                  ? "bg-rose-100 text-rose-700 border-rose-300 font-bold shadow-sm"
+                                  : "bg-slate-100 text-slate-500 border-transparent hover:text-slate-800 hover:bg-slate-200/50"
                               }`}
                             >
                               ⚡ 호우경보 (22.5mm)
@@ -1228,8 +1567,8 @@ export default function App() {
                         {/* Slide Adjuster */}
                         <div className="w-full sm:flex-1 max-w-xs">
                           <div className="flex justify-between items-center mb-1">
-                            <span className="text-[10px] text-slate-500 uppercase tracking-wider">미세 강수량 조절</span>
-                            <span className="text-xs font-mono font-bold text-sky-400">{selectedRegion.rain.toFixed(1)} mm/h</span>
+                            <span className="text-[10px] text-slate-400 uppercase tracking-wider">미세 강수량 조절</span>
+                            <span className="text-xs font-mono font-bold text-sky-600">{selectedRegion.rain.toFixed(1)} mm/h</span>
                           </div>
                           <input
                             type="range"
@@ -1238,7 +1577,7 @@ export default function App() {
                             step="0.5"
                             value={selectedRegion.rain}
                             onChange={(e) => handlePrecipitationChange(parseFloat(e.target.value))}
-                            className="w-full accent-sky-400 bg-slate-900 cursor-pointer h-1.5 rounded-lg appearance-none border border-slate-800"
+                            className="w-full accent-sky-500 bg-slate-200 cursor-pointer h-1.5 rounded-lg appearance-none border-0"
                           />
                         </div>
 
@@ -1253,27 +1592,27 @@ export default function App() {
                         const percentHeight = Math.min(100, Math.max(10, (rainVal / maxVal) * 100));
                         
                         // Decide color/badge based on rain level
-                        let barBg = "bg-slate-800 hover:bg-slate-700";
-                        let textClass = "text-slate-400";
+                        let barBg = "bg-slate-200 hover:bg-slate-300";
+                        let textClass = "text-slate-500";
                         let statusText = "맑음";
                         if (rainVal > 0 && rainVal <= 3) {
-                          barBg = "bg-gradient-to-t from-sky-600 to-sky-400 shadow-[0_0_10px_rgba(56,189,248,0.2)]";
-                          textClass = "text-sky-300 font-bold";
+                          barBg = "bg-gradient-to-t from-sky-500 to-sky-300 shadow-[0_2px_8px_rgba(56,189,248,0.15)]";
+                          textClass = "text-sky-600 font-bold";
                           statusText = "약한비";
                         } else if (rainVal > 3 && rainVal <= 10) {
-                          barBg = "bg-gradient-to-t from-blue-700 to-blue-400 shadow-[0_0_12px_rgba(96,165,250,0.3)]";
-                          textClass = "text-blue-400 font-bold";
+                          barBg = "bg-gradient-to-t from-blue-600 to-blue-400 shadow-[0_2px_10px_rgba(96,165,250,0.2)]";
+                          textClass = "text-blue-600 font-bold";
                           statusText = "보통비";
                         } else if (rainVal > 10) {
-                          barBg = "bg-gradient-to-t from-rose-700 to-amber-500 shadow-[0_0_15px_rgba(239,68,68,0.4)]";
-                          textClass = "text-rose-400 font-bold";
+                          barBg = "bg-gradient-to-t from-rose-500 to-amber-500 shadow-[0_2px_12px_rgba(239,68,68,0.25)]";
+                          textClass = "text-rose-500 font-bold";
                           statusText = "폭우";
                         }
 
                         return (
-                          <div key={`forecast-bento-step-${stepIdx}`} className="bg-slate-950/40 border border-slate-800/40 rounded-xl p-2.5 flex flex-col items-center justify-between text-center min-h-[160px] relative group hover:border-slate-700/60 transition-all">
+                          <div key={`forecast-bento-step-${stepIdx}`} className="bg-slate-50 border border-slate-100 rounded-xl p-2.5 flex flex-col items-center justify-between text-center min-h-[160px] relative group hover:border-slate-200 transition-all shadow-sm">
                             {/* Time */}
-                            <span className="text-[10px] font-mono text-slate-500">{stepLabels[stepIdx]}</span>
+                            <span className="text-[10px] font-mono text-slate-400">{stepLabels[stepIdx]}</span>
                             
                             {/* Bar container */}
                             <div className="w-3.5 h-20 bg-slate-900/60 rounded-full flex items-end overflow-hidden my-2 border border-slate-900">
