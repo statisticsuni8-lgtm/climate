@@ -287,6 +287,31 @@ export default function App() {
     }
   };
 
+  // Interactively adjust precipitation for the selected region (Ultra-short-term precipitation forecast simulator)
+  const handlePrecipitationChange = (newRain: number) => {
+    const updated = {
+      ...selectedRegion,
+      rain: newRain,
+      radarForecast: [
+        newRain,
+        Math.max(0, parseFloat((newRain * 1.1 + (newRain > 0 ? 0.3 : 0)).toFixed(1))),
+        Math.max(0, parseFloat((newRain * 1.3 + (newRain > 0 ? 0.6 : 0)).toFixed(1))),
+        Math.max(0, parseFloat((newRain * 0.7).toFixed(1))),
+        Math.max(0, parseFloat((newRain * 0.3).toFixed(1))),
+        Math.max(0, parseFloat((newRain * 0.05).toFixed(1))),
+      ],
+      condition: newRain === 0
+        ? (selectedRegion.condition === "rainy" || selectedRegion.condition === "thunderstorm" ? "cloudy" : selectedRegion.condition)
+        : (newRain > 15 ? "thunderstorm" : "rainy") as any
+    };
+    setSelectedRegion(updated);
+    
+    // update customRegions as well if it exists there
+    if (customRegions.some(r => r.id === selectedRegion.id)) {
+      setCustomRegions(prev => prev.map(r => r.id === selectedRegion.id ? updated : r));
+    }
+  };
+
   // Helper: Calculate Discomfort Index (불쾌지수)
   const calculateDiscomfortIndex = (temp: number, humidity: number) => {
     const di = 1.8 * temp - 0.55 * (1 - humidity / 100) * (1.8 * temp - 26) + 32;
@@ -1124,6 +1149,158 @@ export default function App() {
 
                   <div className="text-[10px] text-slate-500 font-mono border-t border-slate-800/50 mt-4 pt-3 text-right">
                     KMA Discomfort Formula Applied
+                  </div>
+                </div>
+
+                {/* 4. Large Bento Box: 실시간 초단기 강수예측 시뮬레이터 */}
+                <div id="local_precipitation_forecast_card" className="md:col-span-2 bg-slate-900/60 border border-slate-800 rounded-2xl p-5 relative backdrop-blur-sm flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between mb-3.5">
+                      <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-1.5">
+                        <CloudRain className="w-4 h-4 text-sky-400 animate-bounce" />
+                        지역 맞춤형 초단기 강수예측 시뮬레이터 (6시간)
+                      </h3>
+                      <span className="text-[10px] text-slate-400 font-mono bg-sky-500/10 text-sky-400 px-2 py-0.5 rounded border border-sky-500/20">
+                        {selectedRegion.name} ({selectedRegion.englishName})
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-slate-400 leading-relaxed mb-4">
+                      선택된 <strong>{selectedRegion.name}</strong> 지역의 향후 6시간 동안의 초단기 강수 변화 추이를 보여줍니다. 
+                      아래 시뮬레이션 슬라이더 또는 즉시 설정 버튼을 클릭해 기상 상황에 따른 예측 모델 변화를 테스트해 보세요.
+                    </p>
+
+                    {/* Interactive Slider & Quick Presets */}
+                    <div className="bg-slate-950/70 border border-slate-800/80 p-4 rounded-xl mb-6">
+                      <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                        
+                        {/* Preset Buttons */}
+                        <div className="w-full sm:w-auto">
+                          <span className="text-[10px] text-slate-500 uppercase tracking-wider block mb-1.5">강수 강도 단축 설정</span>
+                          <div className="flex flex-wrap gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handlePrecipitationChange(0)}
+                              className={`px-2.5 py-1 text-xs rounded border transition-all ${
+                                selectedRegion.rain === 0
+                                  ? "bg-slate-800 text-white border-slate-600 font-bold"
+                                  : "bg-slate-900/40 text-slate-400 border-transparent hover:text-slate-300"
+                              }`}
+                            >
+                              ☀️ 맑음 (0mm)
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handlePrecipitationChange(2.5)}
+                              className={`px-2.5 py-1 text-xs rounded border transition-all ${
+                                selectedRegion.rain === 2.5
+                                  ? "bg-sky-950 text-sky-300 border-sky-600/40 font-bold"
+                                  : "bg-slate-900/40 text-slate-400 border-transparent hover:text-slate-300"
+                              }`}
+                            >
+                              🌦️ 약한 비 (2.5mm)
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handlePrecipitationChange(8.0)}
+                              className={`px-2.5 py-1 text-xs rounded border transition-all ${
+                                selectedRegion.rain === 8.0
+                                  ? "bg-blue-950 text-blue-300 border-blue-600/40 font-bold"
+                                  : "bg-slate-900/40 text-slate-400 border-transparent hover:text-slate-300"
+                              }`}
+                            >
+                              🌧️ 보통 비 (8.0mm)
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handlePrecipitationChange(22.5)}
+                              className={`px-2.5 py-1 text-xs rounded border transition-all ${
+                                selectedRegion.rain === 22.5
+                                  ? "bg-rose-950/60 text-rose-300 border-rose-600/40 font-bold"
+                                  : "bg-slate-900/40 text-slate-400 border-transparent hover:text-slate-300"
+                              }`}
+                            >
+                              ⚡ 호우경보 (22.5mm)
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Slide Adjuster */}
+                        <div className="w-full sm:flex-1 max-w-xs">
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="text-[10px] text-slate-500 uppercase tracking-wider">미세 강수량 조절</span>
+                            <span className="text-xs font-mono font-bold text-sky-400">{selectedRegion.rain.toFixed(1)} mm/h</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="0"
+                            max="30"
+                            step="0.5"
+                            value={selectedRegion.rain}
+                            onChange={(e) => handlePrecipitationChange(parseFloat(e.target.value))}
+                            className="w-full accent-sky-400 bg-slate-900 cursor-pointer h-1.5 rounded-lg appearance-none border border-slate-800"
+                          />
+                        </div>
+
+                      </div>
+                    </div>
+
+                    {/* Horizontal Forecast Timeline Bars */}
+                    <div className="grid grid-cols-6 gap-2 pt-2">
+                      {selectedRegion.radarForecast.map((rainVal, stepIdx) => {
+                        const stepLabels = ["현재", "+1시간", "+2시간", "+3시간", "+4시간", "+6시간"];
+                        const maxVal = 30;
+                        const percentHeight = Math.min(100, Math.max(10, (rainVal / maxVal) * 100));
+                        
+                        // Decide color/badge based on rain level
+                        let barBg = "bg-slate-800 hover:bg-slate-700";
+                        let textClass = "text-slate-400";
+                        let statusText = "맑음";
+                        if (rainVal > 0 && rainVal <= 3) {
+                          barBg = "bg-gradient-to-t from-sky-600 to-sky-400 shadow-[0_0_10px_rgba(56,189,248,0.2)]";
+                          textClass = "text-sky-300 font-bold";
+                          statusText = "약한비";
+                        } else if (rainVal > 3 && rainVal <= 10) {
+                          barBg = "bg-gradient-to-t from-blue-700 to-blue-400 shadow-[0_0_12px_rgba(96,165,250,0.3)]";
+                          textClass = "text-blue-400 font-bold";
+                          statusText = "보통비";
+                        } else if (rainVal > 10) {
+                          barBg = "bg-gradient-to-t from-rose-700 to-amber-500 shadow-[0_0_15px_rgba(239,68,68,0.4)]";
+                          textClass = "text-rose-400 font-bold";
+                          statusText = "폭우";
+                        }
+
+                        return (
+                          <div key={`forecast-bento-step-${stepIdx}`} className="bg-slate-950/40 border border-slate-800/40 rounded-xl p-2.5 flex flex-col items-center justify-between text-center min-h-[160px] relative group hover:border-slate-700/60 transition-all">
+                            {/* Time */}
+                            <span className="text-[10px] font-mono text-slate-500">{stepLabels[stepIdx]}</span>
+                            
+                            {/* Bar container */}
+                            <div className="w-3.5 h-20 bg-slate-900/60 rounded-full flex items-end overflow-hidden my-2 border border-slate-900">
+                              <motion.div 
+                                className={`w-full rounded-b-full transition-all duration-300 ${barBg}`}
+                                style={{ height: `${percentHeight}%` }}
+                                initial={{ scaleY: 0 }}
+                                animate={{ scaleY: 1 }}
+                                originY={1}
+                              />
+                            </div>
+
+                            {/* Value */}
+                            <div className="flex flex-col items-center">
+                              <span className={`text-[10px] font-mono ${textClass}`}>{rainVal.toFixed(1)}</span>
+                              <span className="text-[8px] text-slate-500 mt-0.5">{statusText}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                  </div>
+
+                  <div className="text-[10px] text-slate-500 font-mono border-t border-slate-800/50 mt-5 pt-3 flex justify-between items-center">
+                    <span>수치예보 시뮬레이션 기반</span>
+                    <span className="text-sky-500 font-semibold">초단기 예측 모델 적용됨</span>
                   </div>
                 </div>
 
