@@ -2,7 +2,10 @@ import express from "express";
 import dotenv from "dotenv";
 import { GoogleGenAI } from "@google/genai";
 
-dotenv.config();
+// .env.local로 저장한 경우에도 로컬 개발 시 키를 못 읽던 문제 방지
+// (파일이 없으면 각 호출은 조용히 무시됨. 배포 환경은 Vercel이 process.env를 직접 주입)
+dotenv.config({ path: ".env" });
+dotenv.config({ path: ".env.local", override: true });
 
 const app = express();
 

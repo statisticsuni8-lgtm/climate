@@ -95,7 +95,18 @@ const MobileFrameWrapper = ({ children, isMobile }: MobileFrameWrapperProps) => 
 
 export default function App() {
   // Region & Radar States
-  const [selectedRegion, setSelectedRegion] = useState<WeatherData>(regionsData[0]);
+  // 지역 설정(★)으로 저장해둔 지역이 있으면 새로고침해도 그 지역으로 시작한다.
+  // (이전엔 climate_buddy_home_region_data에 저장은 하면서 시작할 때 읽어오지 않아
+  //  "지역 설정"을 눌러도 다시 열면 항상 서울로 초기화되던 버그)
+  const [selectedRegion, setSelectedRegion] = useState<WeatherData>(() => {
+    try {
+      const saved = localStorage.getItem("climate_buddy_home_region_data");
+      if (saved) return JSON.parse(saved) as WeatherData;
+    } catch {
+      /* 저장된 값이 손상된 경우 기본값 사용 */
+    }
+    return regionsData[0];
+  });
   const [radarOn, setRadarOn] = useState<boolean>(true);
   const [forecastStep, setForecastStep] = useState<number>(0);
   const [isPlayingRadar, setIsPlayingRadar] = useState<boolean>(true);
@@ -108,7 +119,15 @@ export default function App() {
   // Custom Searched Regions & Search Inputs
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [isSearching, setIsSearching] = useState<boolean>(false);
-  const [customRegions, setCustomRegions] = useState<WeatherData[]>([]);
+  // 검색으로 추가했던 커스텀 지역들도 매번 사라지지 않도록 복원한다.
+  const [customRegions, setCustomRegions] = useState<WeatherData[]>(() => {
+    try {
+      const saved = localStorage.getItem("climate_buddy_custom_regions");
+      return saved ? (JSON.parse(saved) as WeatherData[]) : [];
+    } catch {
+      return [];
+    }
+  });
   const [searchError, setSearchError] = useState<string | null>(null);
   const [isMobileFrame, setIsMobileFrame] = useState<boolean>(false);
 
